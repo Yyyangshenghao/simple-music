@@ -27,6 +27,7 @@ import {
   normalizeApiCode,
   normalizeApiMessage,
   isUpstreamNotFoundError,
+  isNeteaseRateLimited,
   normalizeLoginInfo,
   getLoginInfo,
   requireLogin,
@@ -192,21 +193,44 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
     try {
       const cookie = getCookie(ctx, 'netease')
       const resp = await call('banner', { type: 0, cookie })
-      const banners = asArr(asObj(resp.body).banners || []).slice(0, 5).map((b) => {
-        const item = asObj(b)
-        const song = asObj(item.song || {})
+      const body = asObj(resp.body)
+      if (asNum(body.code) !== 200) throw new Error('网易云歌曲精选暂时无法加载')
+      const selected = asArr(body.banners).map(asObj).filter(item => {
+        const song = asObj(item.song)
+        return (asNum(item.targetType) === 1 || (item.targetType == null && song.id != null))
+          && /^[1-9]\d*$/.test(String(song.id ?? item.targetId ?? ''))
+      }).slice(0, 5)
+      const missing = [...new Set(selected.filter(item => !asObj(item.song).id).map(item => String(item.targetId)))]
+      const songs = new Map<string, Record<string, unknown>>()
+      let detailFailed = false
+      if (missing.length) {
+        try {
+          const details = asObj((await call('song_detail', { ids: missing.join(','), cookie })).body)
+          if (asNum(details.code) !== 200) throw new Error('歌曲详情暂时无法加载')
+          for (const raw of asArr(details.songs)) {
+            const song = asObj(raw)
+            songs.set(String(song.id), song)
+          }
+        } catch {
+          detailFailed = true
+        }
+      }
+      const banners = selected.flatMap(item => {
+        const song = asObj(item.song).id ? asObj(item.song) : songs.get(String(item.targetId))
+        if (!song?.id || !asStr(song.name)) return []
         return {
           id: item.bannerId || item.targetId,
           title: asStr(item.typeTitle || song.name || ''),
           subtitle: asStr(song.name ? mapArtists(asArr(song.ar || [])).map((a) => a.name).join('、') : ''),
           cover: asStr(item.pic || item.imageUrl || ''),
-          track: song.id ? mapSongRecord(song) : undefined,
+          track: mapSongRecord(song),
         }
       })
-      sendJson(res, { banners })
+      if (detailFailed && banners.length === 0) throw new Error('网易云歌曲精选详情暂时无法加载')
+      sendJson(res, { banners, partial: banners.length < selected.length })
     } catch (err) {
       console.error('[Banner]', err)
-      sendJson(res, { banners: [] }, 500)
+      sendJson(res, { error: '网易云歌曲精选暂时无法加载', banners: [] }, 502)
     }
     return true
   }
@@ -801,6 +825,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
         return true
       }
       let likedIds: string[] = []
+      let checkedDirectly = false
       try {
         if (has('song_like_check')) {
           const checked = await call('song_like_check', {
@@ -809,19 +834,24 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
             timestamp: Date.now(),
           })
           const cbody = asObj(checked.body)
-          const data: unknown = cbody.data || cbody.ids || cbody
-          if (Array.isArray(data)) likedIds = data.map(String)
-          else if (data && typeof data === 'object') {
+          if (isNeteaseRateLimited(checked)) throw checked
+          const data: unknown = cbody.data ?? cbody.ids ?? cbody
+          if (normalizeApiCode(checked) === 200 && Array.isArray(data)) {
+            likedIds = data.map(String)
+            checkedDirectly = true
+          } else if (normalizeApiCode(checked) === 200 && data && typeof data === 'object') {
             const dobj = data as Record<string, unknown>
-            ids.forEach((id) => {
-              if (dobj[id] || dobj[String(id)] || dobj[Number(id)]) likedIds.push(String(id))
-            })
+            if (ids.every(id => typeof dobj[id] === 'boolean' || dobj[id] === 0 || dobj[id] === 1)) {
+              likedIds = ids.filter(id => !!dobj[id])
+              checkedDirectly = true
+            }
           }
         }
       } catch (e) {
+        if (isNeteaseRateLimited(e)) throw new Error('网易云请求受限，请稍后再试')
         console.warn('[LikeCheck] direct check failed:', (e as Error).message)
       }
-      if (!likedIds.length) {
+      if (!checkedDirectly) {
         const r = await call('likelist', { uid: info.userId, cookie, timestamp: Date.now() })
         likedIds = asArr(asObj(r.body).ids).map(String)
       }
@@ -980,7 +1010,7 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       success = finalCode === 200 && !asObj(finalBody).error
       attempts.push({ api: 'playlist_tracks', code: finalCode, message: finalMessage, body: finalBody })
 
-      if (!success && !res.destroyed && getCookie(ctx, 'netease') === cookie && has('playlist_track_add')) {
+      if (!success && !isNeteaseRateLimited(primary) && !res.destroyed && getCookie(ctx, 'netease') === cookie && has('playlist_track_add')) {
         try {
           const fallback = await call('playlist_track_add', { pid, ids: String(id), cookie, timestamp: Date.now() })
           finalBody = fallback.body || fallback
@@ -1120,10 +1150,12 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       try {
         if (has('lyric_new')) {
           const nr = await call('lyric_new', { id, cookie, timestamp: Date.now() })
+          if (isNeteaseRateLimited(nr)) throw nr
           body = asObj(nr.body)
           source = 'lyric_new'
         }
       } catch (errNew) {
+        if (isNeteaseRateLimited(errNew)) throw new Error('网易云请求受限，请稍后再试')
         console.warn('[LyricNew]', (errNew as Error).message)
       }
       if (!(asObj(body.lrc).lyric || asObj(body.yrc).lyric)) {
@@ -1192,15 +1224,17 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const id = url.searchParams.get('id')
       const limit = Math.max(6, Math.min(50, parseInt(url.searchParams.get('limit') || '20', 10) || 20))
       const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0)
-      if (!id) {
+      if (!id || !/^[1-9]\d*$/.test(id)) {
         sendJson(res, { error: 'Missing song id', comments: [] }, 400)
         return true
       }
       const cookie = getCookie(ctx, 'netease')
       const r = await call('comment_music', { id, limit, offset, cookie, timestamp: Date.now() })
       const body = asObj(r.body)
-      const raw = body.hotComments && offset === 0 ? body.hotComments : body.comments
-      const comments = asArr(raw)
+      if (r.status !== 200 || asNum(body.code) !== 200 || !Array.isArray(body.comments)) {
+        throw new Error('NETEASE_SONG_COMMENTS_FAILED')
+      }
+      const mapComments = (raw: unknown) => asArr(raw)
         .map((item) => {
           const c = asObj(item)
           const user = asObj(c.user)
@@ -1213,10 +1247,15 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
           }
         })
         .filter((c) => c.content)
-      sendJson(res, { id, total: asNum(body.total), comments, hot: !!(body.hotComments && offset === 0), body })
+      const comments = mapComments(body.comments)
+      const hotComments = offset === 0 ? mapComments(body.hotComments) : []
+      const total = typeof body.total === 'number' && Number.isSafeInteger(body.total) && body.total >= 0 ? body.total : null
+      const hasMore = body.comments.length > 0 && body.more !== false
+        && (body.more === true || (total === null ? body.comments.length >= limit : offset + limit < total))
+      sendJson(res, { id, total, comments, hotComments, nextOffset: hasMore ? offset + limit : undefined, hot: hotComments.length > 0 })
     } catch (err) {
       console.error('[SongComments]', err)
-      sendJson(res, { error: (err as Error).message, comments: [] }, 500)
+      sendJson(res, { error: 'NETEASE_SONG_COMMENTS_FAILED', comments: [], hotComments: [], total: null }, 502)
     }
     return true
   }
@@ -1490,8 +1529,8 @@ export const neteaseRoutes: RouteHandler = async (req, res, url, ctx) => {
       const resolvedId = url.searchParams.get('resolvedId') || ''
       const quality = url.searchParams.get('quality') || ''
       const cacheContext: AudioCacheContext | undefined =
-        (originSource === 'netease' || originSource === 'qq')
-        && (resolvedSource === 'netease' || resolvedSource === 'qq')
+        (originSource === 'netease' || originSource === 'qq' || originSource === 'kugou')
+        && (resolvedSource === 'netease' || resolvedSource === 'qq' || resolvedSource === 'kugou')
         && originId && resolvedId && quality
           ? {
               origin: { source: originSource, id: originId },

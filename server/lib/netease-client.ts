@@ -1,7 +1,9 @@
 import * as NCM from 'NeteaseCloudMusicApi'
 import type { ServerContext } from '../types'
 import { getCookie, clearCookie } from './cookie'
+import { deviceHex } from './device-identity'
 import { installNeteaseProxy } from './netease-proxy'
+import { BILIBILI_REFERER, isBilibiliMediaHost } from './bilibili-client'
 
 export const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -28,11 +30,36 @@ export function has(name: string): boolean {
   return typeof ncmTable[name] === 'function'
 }
 
+/** 游客请求带固定设备字段，否则 NCM 每次请求都会生成新的随机值；已登录账号不改动。 */
+export function withGuestDevice(params: NcmParams): NcmParams {
+  const cookie = params.cookie
+  if (typeof cookie === 'string' ? /(?:^|;\s*)MUSIC_U=/.test(cookie) : !!asObj(cookie).MUSIC_U) return params
+  const nuid = deviceHex('netease:nuid').slice(0, 32)
+  const mark = deviceHex('netease:wnmcid').slice(0, 6).replace(/\d/g, digit => 'abcdefghij'[Number(digit)])
+  const device: Record<string, string> = {
+    _ntes_nuid: nuid,
+    _ntes_nnid: `${nuid},1700000000000`,
+    WNMCID: `${mark}.1700000000000.01.0`,
+    deviceId: deviceHex('netease:device').slice(0, 32).toUpperCase(),
+  }
+  if (typeof cookie === 'string') {
+    const present = parseCookieString(cookie)
+    const added = Object.entries(device).filter(([key]) => !present[key]).map(([key, value]) => `${key}=${value}`)
+    return { ...params, cookie: [cookie, ...added].filter(Boolean).join('; ') }
+  }
+  return { ...params, cookie: { ...device, ...asObj(cookie) } }
+}
+
 /** 调用 NCM 接口；未导出时抛错（仅用于必然存在的接口）。 */
 export function call(name: string, params: NcmParams): Promise<NcmResponse> {
   const fn = ncmTable[name]
   if (typeof fn !== 'function') throw new Error(`${name} not available`)
-  return (fn as NcmFn)(params)
+  return (fn as NcmFn)(withGuestDevice(params)).catch((err: unknown) => {
+    // NCM 自己的 [ERR] 日志不带接口名，这里补一行便于定位风控(-460)等失败来源。
+    const body = asObj(asObj(err).body)
+    console.warn('[NCM]', name, 'failed:', body.code ?? asObj(err).status, 'logged-in:', /MUSIC_U=/.test(String(params.cookie ?? '')))
+    throw err
+  })
 }
 
 // ---------- 通用取值收窄 ----------
@@ -308,6 +335,9 @@ export function audioProxyHeadersFor(audioUrl: string, range: string): Record<st
   try {
     const host = new URL(audioUrl).hostname.toLowerCase()
     if (host.includes('qq.com') || host.includes('qpic.cn')) headers.Referer = 'https://y.qq.com/'
+    else if (isBilibiliMediaHost(host)) headers.Referer = BILIBILI_REFERER
+    // 汽水音乐的抖音点播 CDN 拒绝外站 Referer。
+    else if (host.endsWith('.douyinvod.com') || host.endsWith('.douyinpic.com')) headers.Referer = 'https://www.qishui.com/'
   } catch {
     /* ignore */
   }
@@ -323,7 +353,7 @@ export function audioContentTypeForUrl(audioUrl: string, upstreamType: string | 
   }
   if (/\.flac$/.test(pathname)) return 'audio/flac'
   if (/\.mp3$/.test(pathname)) return 'audio/mpeg'
-  if (/\.(m4a|mp4)$/.test(pathname)) return 'audio/mp4'
+  if (/\.(m4a|mp4|m4s)$/.test(pathname)) return 'audio/mp4'
   if (/\.ogg$/.test(pathname)) return 'audio/ogg'
   if (/\.wav$/.test(pathname)) return 'audio/wav'
   return upstreamType || 'audio/mpeg'
@@ -561,7 +591,38 @@ const LOGGED_OUT: LoginInfo = {
   vipLabel: '无VIP',
 }
 
+const LOGIN_INFO_TTL_MS = 30_000
+const loginInfoRequests = new WeakMap<ServerContext, {
+  cookie: string
+  expiresAt: number
+  request: Promise<LoginInfo>
+}>()
+
+/** 同一服务上下文和 Cookie 合并查询；仅成功资料短暂复用，换账号立即失效。 */
 export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
+  const cookie = getCookie(ctx, 'netease')
+  if (!cookie) {
+    loginInfoRequests.delete(ctx)
+    return { ...LOGGED_OUT }
+  }
+  const cached = loginInfoRequests.get(ctx)
+  if (cached?.cookie === cookie && cached.expiresAt > Date.now()) return { ...await cached.request }
+  const entry = { cookie, expiresAt: Infinity, request: Promise.resolve(LOGGED_OUT) }
+  entry.request = fetchLoginInfo(ctx).then(info => {
+    if (loginInfoRequests.get(ctx) === entry) {
+      if (info.loggedIn && getCookie(ctx, 'netease') === cookie) entry.expiresAt = Date.now() + LOGIN_INFO_TTL_MS
+      else loginInfoRequests.delete(ctx)
+    }
+    return info
+  }).catch(error => {
+    if (loginInfoRequests.get(ctx) === entry) loginInfoRequests.delete(ctx)
+    throw error
+  })
+  loginInfoRequests.set(ctx, entry)
+  return { ...await entry.request }
+}
+
+async function fetchLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
   const cookie = getCookie(ctx, 'netease')
   if (!cookie) return { ...LOGGED_OUT }
   const staleInfo = (): LoginInfo => ({ ...LOGGED_OUT, hasCookie: !!getCookie(ctx, 'netease') })
@@ -570,18 +631,21 @@ export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
   try {
     const st = await call('login_status', { cookie, timestamp: Date.now() })
     if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
+    if (isNeteaseRateLimited(st)) throw st
     const body = asObj(st.body)
     const data = isObj(body.data) ? body.data : body
     const info = normalizeLoginInfo(data.profile || body.profile, data.account || body.account, data)
     if (info.loggedIn) return info
   } catch (e) {
     console.warn('[Login] login_status failed:', (e as Error).message)
+    if (isNeteaseRateLimited(e)) throw new NeteaseRateLimitError()
   }
   if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
 
   try {
     const acc = await call('user_account', { cookie, timestamp: Date.now() })
     if (getCookie(ctx, 'netease') !== cookie) return staleInfo()
+    if (isNeteaseRateLimited(acc)) throw acc
     const body = asObj(acc.body)
     const info = normalizeLoginInfo(body.profile, body.account, body)
     if (info.loggedIn) return info
@@ -589,6 +653,7 @@ export async function getLoginInfo(ctx: ServerContext): Promise<LoginInfo> {
     return { ...LOGGED_OUT, hasCookie: !!getCookie(ctx, 'netease') }
   } catch (e) {
     console.warn('[Login] account check failed:', (e as Error).message)
+    if (isNeteaseRateLimited(e)) throw new NeteaseRateLimitError()
     return staleInfo()
   }
 }
@@ -686,6 +751,36 @@ export interface SongUrlResult {
   fee?: unknown
   error?: string
 }
+
+// 同一通道的取链冷却由所有曲目和账号共用；客户端受限不代表网页通道也不可用。
+const SONG_URL_COOLDOWN_MS = 60_000
+const songUrlBlockedUntil = { eapi: 0, weapi: 0 }
+
+class NeteaseRateLimitError extends Error {
+  constructor() {
+    super('NETEASE_RATE_LIMITED: 网易云请求受限，请稍后再试')
+  }
+}
+
+export function isNeteaseRateLimited(payload: unknown): boolean {
+  return [-460, -462, 429].includes(normalizeApiCode(payload)) || asObj(payload).status === 429
+}
+
+async function callSongUrl(name: 'song_url_v1' | 'song_url', params: NcmParams): Promise<NcmResponse> {
+  for (const crypto of ['eapi', 'weapi'] as const) {
+    if (Date.now() < songUrlBlockedUntil[crypto]) continue
+    try {
+      const result = await call(name, { ...params, crypto })
+      if (isNeteaseRateLimited(result)) throw result
+      return result
+    } catch (error) {
+      if (!isNeteaseRateLimited(error)) throw error
+      songUrlBlockedUntil[crypto] = Date.now() + SONG_URL_COOLDOWN_MS
+    }
+  }
+  throw new NeteaseRateLimitError()
+}
+
 export async function handleSongUrl(
   id: string,
   loginInfo: LoginInfo,
@@ -709,9 +804,10 @@ export async function handleSongUrl(
     try {
       let result: NcmResponse
       try {
-        result = await call('song_url_v1', { id, level: q.level, cookie })
-      } catch {
-        result = await call('song_url', { id, br: q.br, cookie })
+        result = await callSongUrl('song_url_v1', { id, level: q.level, cookie })
+      } catch (error) {
+        if (error instanceof NeteaseRateLimitError) throw error
+        result = await callSongUrl('song_url', { id, br: q.br, cookie })
       }
       const d = asObj(asArr(asObj(result.body).data)[0])
       if (Object.keys(d).length) lastData = d
@@ -748,6 +844,17 @@ export async function handleSongUrl(
         }
       }
     } catch (err) {
+      if (err instanceof NeteaseRateLimitError) {
+        return {
+          url: null,
+          trial: false,
+          playable: false,
+          reason: 'rate_limited',
+          message: err.message,
+          error: 'NETEASE_RATE_LIMITED',
+          requestedQuality,
+        }
+      }
       lastError = err as Error
       console.log('[SongUrl]', q.level, 'failed:', (err as Error).message)
     }
@@ -774,25 +881,32 @@ export interface SongQualityOption {
   br: number
 }
 
+const QUALITY_PROBE_RETRY_DELAY_MS = 600
+
 /**
  * 探测单曲实际可得的音质档:从最高候选档起顺序走阶——上游对不存在的档位会降级返回,
  * "请求档 ≠ 返回档"即请求档不存在,且返回档就是其下一个真实档,可直接跳到再下一档继续。
  * 必须顺序发请求:上游对同曲并发取链会去重/降级,并行探测会漏掉母带档(实测)。
  * 试听片段不算可得。
+ * 普通瞬时错误稍等重试一次；明确风控立即停止，保留已得档并标记 incomplete，
+ * 调用方不应缓存这份可能缺档的结果。
  */
 export async function handleSongQualities(
   id: string,
   loginInfo: LoginInfo,
-  cookie: string
-): Promise<{ qualities: SongQualityOption[] }> {
+  cookie: string,
+  retryDelayMs = QUALITY_PROBE_RETRY_DELAY_MS
+): Promise<{ qualities: SongQualityOption[]; incomplete?: boolean }> {
   const svipReady = hasNeteaseSvip(loginInfo)
   const candidates = NETEASE_QUALITY_CANDIDATES.filter((q) => !q.svip || svipReady)
   const qualities: SongQualityOption[] = []
+  let incomplete = false
+  let retried = -1
   let i = 0
   while (i < candidates.length) {
     const q = candidates[i]
     try {
-      const result = await call('song_url_v1', { id, level: q.level, cookie })
+      const result = await callSongUrl('song_url_v1', { id, level: q.level, cookie })
       const d = asObj(asArr(asObj(result.body).data)[0])
       if (d.url && !d.freeTrialInfo) {
         const actual = String(d.level || q.level)
@@ -807,12 +921,19 @@ export async function handleSongQualities(
         }
         // 未知档(如 dolby 等设备鉴权变体)不列入选单,继续探测下一档
       }
-    } catch {
-      /* 单档探测失败按不可得处理,继续走下一档 */
+    } catch (error) {
+      if (error instanceof NeteaseRateLimitError) return { qualities, incomplete: true }
+      if (retried !== i) {
+        retried = i
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs))
+        continue
+      }
+      // 重试仍失败按不可得处理，继续走下一档，但结果不完整
+      incomplete = true
     }
     i += 1
   }
-  return { qualities }
+  return incomplete ? { qualities, incomplete } : { qualities }
 }
 
 export interface MappedArtistDetail {

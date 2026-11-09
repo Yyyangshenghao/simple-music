@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { useUpdateStore } from '../../stores/update'
+import { supportsInAppUpdate, useUpdateStore } from '../../stores/update'
 import { springGentle, springSnappy, tapScale } from '../../lib/motion-presets'
 import { CloseIcon } from '../ui/CloseIcon'
 import styles from './UpdateBanner.module.css'
@@ -20,20 +20,25 @@ export function UpdateBanner() {
 
   const visible = !!info?.updateAvailable && info.release.version !== dismissedVersion && !!window.desktop?.isDesktop
 
+  // Linux 没有应用内安装链路（AppImage 由用户手动替换），只提供前往 Release 页的入口。
+  const manualDownload = !supportsInAppUpdate()
   const ready = job?.status === 'ready'
   const errored = job?.status === 'error'
 
-  const actionLabel = ready
-    ? installing
-      ? '正在安装…'
-      : '重启并安装'
-    : downloading
-      ? `下载中 ${job?.progress ?? 0}%`
-      : errored
-        ? '重试下载'
-        : '下载更新'
+  const actionLabel = manualDownload
+    ? '前往下载'
+    : ready
+      ? installing
+        ? '正在安装…'
+        : '重启并安装'
+      : downloading
+        ? `下载中 ${job?.progress ?? 0}%`
+        : errored
+          ? '重试下载'
+          : '下载更新'
 
   const handleAction = (): void => {
+    if (manualDownload) return
     if (ready) void installUpdate()
     else void startDownload()
   }
@@ -59,15 +64,26 @@ export function UpdateBanner() {
               </div>
             )}
             <div className={styles.actions}>
-              <motion.button
-                className={styles.actionBtn}
-                onClick={handleAction}
-                whileTap={tap(tapScale)}
-                transition={springSnappy}
-                disabled={(downloading && !ready && !errored) || installing}
-              >
-                {actionLabel}
-              </motion.button>
+              {manualDownload ? (
+                <a
+                  className={styles.actionBtn}
+                  href={info.release.htmlUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {actionLabel}
+                </a>
+              ) : (
+                <motion.button
+                  className={styles.actionBtn}
+                  onClick={handleAction}
+                  whileTap={tap(tapScale)}
+                  transition={springSnappy}
+                  disabled={(downloading && !ready && !errored) || installing}
+                >
+                  {actionLabel}
+                </motion.button>
+              )}
               <button className={styles.dismissBtn} onClick={dismiss} aria-label="关闭更新提示">
                 <CloseIcon size={14} />
               </button>

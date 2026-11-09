@@ -1,9 +1,10 @@
 import type { Track } from '../types/domain'
 import { api } from './api'
+import type { CacheableSource } from './offline-cache'
 
 export interface OfflineLibraryItem {
   origin: {
-    source: 'netease' | 'qq'
+    source: CacheableSource
     id: string
     name?: string
     artist?: string

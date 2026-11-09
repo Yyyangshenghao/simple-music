@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
 import type { LyricPreviewLine } from '../../types/lyrics-source'
 import { usePlayerStore } from '../../stores/player'
 import { normalizeLyricsSourceOrder, useLyricsSourceStore } from '../../stores/lyrics-source'
 import { useLyricsSourceDialogStore } from '../../stores/lyrics-source-dialog'
 import { useNavigationStore } from '../../stores/navigation'
 import { useToastStore } from '../../stores/toast'
-import { LYRIC_SOURCE_LABELS, type LyricOrigin, type LyricSourceCandidate } from '../../types/lyrics-source'
+import { LYRIC_SEARCH_MAX_LENGTH, LYRIC_SOURCE_LABELS, normalizeLyricSearch, type LyricOrigin, type LyricSourceCandidate, type LyricSearchInput } from '../../types/lyrics-source'
 import type { Track } from '../../types/domain'
 import { LyricOriginInline, LyricOriginRow } from './LyricOriginIcon'
+import { BilibiliSongCandidates } from './BilibiliSongCandidates'
 import styles from './LyricsSourceDialog.module.css'
+
+const EMPTY_CANDIDATES: LyricSourceCandidate[] = []
 
 const STATUS_LABELS = {
   idle: '尚未查询', loading: '查找中…', ready: '逐行', empty: '未收录', mismatch: '未找到同曲同版本',
@@ -41,11 +45,18 @@ export function LyricsSourceDialog() {
 }
 
 export function LyricsSourceSelection({ track }: { track: Track }) {
+  const display = useBilibiliTrackDisplay(track)
+  const name = display?.name ?? track.name
+  const artist = display?.artist ?? track.artist
   const trackKey = `${track.source}:${String(track.id)}`
   const token = useRef(crypto.randomUUID()).current
   const dialog = useRef<HTMLDialogElement>(null)
   const active = useRef(true)
-  const candidates = useLyricsSourceStore((s) => s.candidateTrackKey === trackKey && s.candidateToken === token ? s.candidates : [])
+  const searchSequence = useRef(0)
+  const [activeSearch, setActiveSearch] = useState<LyricSearchInput | null>(null)
+  const candidates = useLyricsSourceStore((s) => s.candidateTrackKey === trackKey && s.candidateToken === token
+    && s.candidateSearch?.name === activeSearch?.name && s.candidateSearch?.artist === activeSearch?.artist
+    ? s.candidates : EMPTY_CANDIDATES)
   const appliedOrigin = useLyricsSourceStore((s) => s.appliedOrigin)
   const requestedOrigin = useLyricsSourceStore((s) => s.requestedOrigin)
   const remembered = useLyricsSourceStore((s) => s.remembered[trackKey])
@@ -60,13 +71,19 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
   const [remember, setRemember] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
-  const selectedCandidate = candidates.find((candidate) => candidate.origin === (selected === 'auto' ? appliedOrigin : selected))
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchName, setSearchName] = useState(remembered?.search?.name ?? '')
+  const [searchArtist, setSearchArtist] = useState(remembered?.search?.artist ?? '')
+  const searchInput = normalizeLyricSearch({ name: searchName, artist: searchArtist })
+  const searchChanged = !!activeSearch && (searchInput?.name !== activeSearch.name || searchInput?.artist !== activeSearch.artist)
+  const querying = !error && !!activeSearch && (!candidates.length || candidates.some(candidate => candidate.status === 'loading'))
+  const selectedCandidate = candidates.find((candidate) => candidate.origin === (selected === 'auto' ? activeSearch ? null : appliedOrigin : selected))
   const savedSelection = selected !== 'auto' && remembered?.origin === selected
   const sameSelection = selected === requestedOrigin && (selected === 'auto' || selected === appliedOrigin)
   const defaultChanged = selected === 'auto' && defaultSource !== appliedPreference
   const canApply = !busy && (selected === 'auto'
     ? requestedOrigin !== 'auto' || !!remembered || defaultChanged
-    : selectedCandidate?.status === 'ready' && (!sameSelection || (remember && !savedSelection)))
+    : !searchChanged && selectedCandidate?.status === 'ready' && (!!activeSearch || !sameSelection || (remember && !savedSelection)))
   for (const candidate of candidates) {
     if (candidate.status !== 'loading' && candidate.status !== 'idle') settled.set(candidate.origin, candidate.status)
   }
@@ -102,6 +119,15 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
       if (active.current) setError('来源查询失败，请重试')
     })
   }
+  const search = (input: LyricSearchInput | null) => {
+    const sequence = ++searchSequence.current
+    setError('')
+    settled.clear()
+    setActiveSearch(input)
+    void useLyricsSourceStore.getState().queryCandidates(trackKey, token, undefined, input).catch(() => {
+      if (active.current && searchSequence.current === sequence) setError('歌词搜索失败，请重试')
+    })
+  }
   const apply = async () => {
     if (!canApply) return
     setBusy(true)
@@ -123,10 +149,10 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
   }
   const applyLabel = busy ? '正在切换…' : selected === 'auto'
     ? defaultChanged && requestedOrigin === 'auto' && !remembered ? '应用当前默认规则' : '恢复自动选择'
-    : sameSelection ? '保存选择' : '使用此歌词'
+    : sameSelection && !activeSearch ? '保存选择' : '使用此歌词'
 
   return (
-    <dialog ref={dialog} className={`${styles.dialog} no-drag`} aria-labelledby="lyrics-source-title" aria-busy={busy}
+    <dialog ref={dialog} data-copyable-text className={`${styles.dialog} no-drag`} aria-labelledby="lyrics-source-title" aria-busy={busy}
       onCancel={(event) => { event.preventDefault(); close() }}
       onClick={(event) => {
         if (event.target !== event.currentTarget) return
@@ -134,13 +160,43 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
         if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close()
       }}>
       <header className={styles.header}>
-        <div className={styles.heading}><h2 id="lyrics-source-title">选择歌词</h2><p title={`${track.name} · ${track.artist}`}>{track.name} · {track.artist || '未知歌手'}</p></div>
+        <div className={styles.heading}>
+          <h2 id="lyrics-source-title">选择歌词</h2>
+          <p title={`${name} · ${artist}`}>{name} · {artist || '未知歌手'}</p>
+          {display?.caption && <p className={styles.originalTitle} title={display.caption}>{display.caption}</p>}
+        </div>
         <button type="button" className={styles.close} aria-label="关闭歌词选择" onClick={close}>
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>
         </button>
       </header>
       {remembered && fallbackReason && <p className={styles.notice} role="status">{fallbackReason}。{appliedOrigin ? `当前使用${LYRIC_SOURCE_LABELS[appliedOrigin]}` : '暂无可用歌词'}</p>}
+      <div className={styles.searchPanel}>
+        <button type="button" className={styles.settingsLink} aria-expanded={showSearch} aria-controls="lyrics-manual-search"
+          disabled={busy} onClick={() => setShowSearch(!showSearch)}>手动搜索</button>
+        {activeSearch && !showSearch && <span className={styles.hint}>{activeSearch.name} · {activeSearch.artist}</span>}
+        {showSearch && <form id="lyrics-manual-search" className={styles.searchForm} aria-label="手动搜索歌词" onSubmit={event => {
+          event.preventDefault()
+          if (!busy && searchInput) search(searchInput)
+        }}>
+          <label>歌名<input value={searchName} maxLength={LYRIC_SEARCH_MAX_LENGTH} required disabled={busy} onChange={event => setSearchName(event.target.value)} /></label>
+          <label>歌手<input value={searchArtist} maxLength={LYRIC_SEARCH_MAX_LENGTH} required disabled={busy} onChange={event => setSearchArtist(event.target.value)} /></label>
+          <button type="submit" className={styles.searchButton} disabled={busy || !searchInput || (querying && !searchChanged)}>{querying && !searchChanged ? '搜索中…' : '搜索歌词'}</button>
+          {activeSearch && <button type="button" className={styles.settingsLink} disabled={busy} onClick={() => search(null)}>按原曲查找</button>}
+        </form>}
+      </div>
       <div className={styles.body}>
+        {track.source === 'bilibili' && <BilibiliSongCandidates track={track} disabled={busy} onBusyChange={setBusy} onConfirmed={async () => {
+          if (!active.current) return
+          ++searchSequence.current
+          settled.clear()
+          setActiveSearch(null)
+          setSearchName('')
+          setSearchArtist('')
+          setSelected('auto')
+          setError('')
+          await useLyricsSourceStore.getState().queryCandidates(trackKey, token, undefined, null)
+          if (active.current) useToastStore.getState().show('已确认歌曲，歌名、封面和歌词按此歌曲匹配')
+        }} />}
         <div className={styles.sources} role="radiogroup" aria-label="歌词来源">
           <button type="button" role="radio" aria-checked={selected === 'auto'} className={styles.source} data-selected={selected === 'auto'} disabled={busy} onClick={() => { setSelected('auto'); setError('') }}>
             <LyricOriginRow origin="auto">
@@ -174,21 +230,22 @@ export function LyricsSourceSelection({ track }: { track: Track }) {
           </div>)}
           {candidates.length === 0 && <>
             <p className={styles.sourceHint} role="status">{error ? '未能获取来源信息' : '正在查找歌词来源…'}</p>
-            {error && <button className={styles.sourceAction} onClick={() => { setError(''); query() }}>重试查询</button>}
+            {error && <button className={styles.sourceAction} onClick={() => { setError(''); if (activeSearch) search(activeSearch); else query() }}>重试查询</button>}
           </>}
         </div>
         <section className={styles.preview} aria-label="歌词预览" aria-live="polite">
           <h3>预览</h3>
           {selectedCandidate?.status === 'ready' ? <>
             <p className={styles.capabilities}>{candidateDescription(selectedCandidate)}</p>
+            {activeSearch && <p className={styles.matchLabel}>{selectedCandidate.matchedName ?? activeSearch.name} · {selectedCandidate.matchedArtist ?? activeSearch.artist}</p>}
             <PreviewLines key={selectedCandidate.origin} lines={selectedCandidate.preview} />
             <details className={styles.details}><summary>歌曲与来源详情</summary>
-              <p>{selectedCandidate.matchedName || track.name} · {selectedCandidate.matchedArtist || track.artist}</p>
+              <p>{selectedCandidate.matchedName || name} · {selectedCandidate.matchedArtist || artist}</p>
               <p>正文：{LYRIC_SOURCE_LABELS[selectedCandidate.origin]}</p>
               {selectedCandidate.hasTranslation && <p>翻译：{LYRIC_SOURCE_LABELS[selectedCandidate.translationOrigin ?? selectedCandidate.origin]}</p>}
               {selectedCandidate.hasRomaji && <p>音译：{LYRIC_SOURCE_LABELS[selectedCandidate.romajiOrigin ?? selectedCandidate.origin]}</p>}
             </details>
-          </> : <p className={styles.previewEmpty}>{selectedCandidate ? candidateDescription(selectedCandidate) : '选择来源后可预览歌词，播放中的歌词保持不变。'}</p>}
+          </> : <p className={styles.previewEmpty}>{selectedCandidate ? candidateDescription(selectedCandidate) : activeSearch ? '选择一个搜索到的来源预览歌词。' : '选择来源后可预览歌词，播放中的歌词保持不变。'}</p>}
           {track.source === 'local' && <p className={styles.capabilities}>本地歌词读取同名 .lrc 或文件内嵌的同步歌词；在线来源按文件标签匹配，只发送歌名、歌手与时长，不上传文件或路径</p>}
         </section>
       </div>

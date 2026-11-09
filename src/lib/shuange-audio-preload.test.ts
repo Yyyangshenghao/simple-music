@@ -17,6 +17,7 @@ vi.mock('../stores/providers', () => ({
 vi.mock('./provider-account-session', () => ({ providerAccountSession: () => mock.account }))
 vi.mock('./offline-cache', () => ({
   fetchOfflineStatuses: vi.fn(),
+  isCacheableSource: (source: unknown) => source === 'netease' || source === 'qq' || source === 'kugou',
   offlineTrackKey: (track: Track) => `${track.source}:${track.id}`,
   offlineFileUrl: (status: { entryId?: string }) => status.entryId ? `/api/audio-cache/file?entryId=${status.entryId}` : null,
 }))

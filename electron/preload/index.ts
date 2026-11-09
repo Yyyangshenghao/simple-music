@@ -13,6 +13,7 @@ import type {
   GameModeState,
   TrayPlaybackState,
   LoginResult,
+  QrLoginPoll,
   OkResult,
   LastUpdateInstall,
   LyricsPayload,
@@ -55,6 +56,7 @@ const api = {
   onKaraokeEvent: (cb: (event: KaraokeHelperEvent) => void) => on('karaoke:event', cb),
   onPlaybackSnapshot: (cb: (snapshot: unknown) => void) => on('playback:snapshot', cb),
   platform: process.platform,
+  isPortable: process.platform === 'win32' && Boolean(process.env.PORTABLE_EXECUTABLE_DIR || process.env.PORTABLE_EXECUTABLE_FILE),
   serverPort: readServerPort(),
   serverToken: readServerToken(),
 
@@ -86,6 +88,9 @@ const api = {
   clearNeteaseLogin: (): Promise<OkResult> => ipcRenderer.invoke('login:netease-clear'),
   openQQLogin: (): Promise<LoginResult> => ipcRenderer.invoke('login:qq-open'),
   clearQQLogin: (): Promise<OkResult> => ipcRenderer.invoke('login:qq-clear'),
+  startNeteaseQrLogin: (): Promise<QrLoginPoll> => ipcRenderer.invoke('login:netease-qr-start'),
+  pollNeteaseQrLogin: (): Promise<QrLoginPoll> => ipcRenderer.invoke('login:netease-qr-poll'),
+  cancelNeteaseQrLogin: (): Promise<OkResult> => ipcRenderer.invoke('login:netease-qr-cancel'),
 
   // 桌面歌词
   setDesktopLyricsEnabled: (enabled: boolean, payload?: LyricsPayload): Promise<OkResult> =>

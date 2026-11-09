@@ -5,6 +5,7 @@ import { matchingTrackIndices } from '../lib/track-search'
 import { artistTabContentHeight, shouldScrollArtistTabToStart, scrollArtistTabToStart } from '../lib/artist-tab-scroll'
 import { useArtistSearch } from '../hooks/useArtistSearch'
 import { serviceFor } from '../lib/service-registry'
+import { isProviderId, type ProviderId } from '../providers/types'
 import { useNavigationStore, type ArtistPageState } from '../stores/navigation'
 import { usePlaylistStore } from '../stores/playlist'
 import { useBackdropStore } from '../stores/backdrop'
@@ -22,6 +23,7 @@ import styles from './ArtistPage.module.css'
 import { providerAccountSession } from '../lib/provider-account-session'
 import { isProviderParticipating, useProviderStore } from '../stores/providers'
 import { BackButton } from '../components/ui/BackButton'
+import { ActionButton } from '../components/ui/ActionButton'
 
 type ArtistTab = 'songs' | 'albums' | 'similar'
 const ARTIST_SONG_PAGE_SIZE = 50
@@ -31,7 +33,7 @@ interface SongPreview { songs: Track[]; hasMore: boolean }
 
 interface ArtistPageProps {
   id: unknown
-  source: 'netease' | 'qq' | 'apple'
+  source: ProviderId
   initialState?: ArtistPageState
 }
 
@@ -51,6 +53,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const searching = Boolean(query.trim())
   const [artist, setArtist] = useState<ArtistInfo | null>(cachedArtist ?? null)
   const [artistLoaded, setArtistLoaded] = useState(cachedArtist !== undefined)
+  const [artistRetry, setArtistRetry] = useState(0)
   const [songs, setSongs] = useState<Track[]>(cachedSongs?.songs ?? [])
   const [albums, setAlbums] = useState<Playlist[]>(cachedAlbums ?? [])
   const [songsLoaded, setSongsLoaded] = useState(cachedSongs !== undefined)
@@ -205,7 +208,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
     void requestProviderData(source, scope('albums'), () => service.getArtistAlbums(id), { maxAgeMs: BROWSE_CACHE_MAX_AGE_MS }).then((v) => { if (!cancelled) setAlbums(v) }).catch(() => {})
       .finally(() => { if (!cancelled) setAlbumsLoaded(true) })
     return () => { cancelled = true }
-  }, [id, runtime, service])
+  }, [id, runtime, service, artistRetry])
 
   useEffect(() => {
     let cancelled = false
@@ -229,7 +232,7 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
 
   // 相似歌手可能跨音源，跟着条目自己的 source 走，别沿用当前页的 source
   function openArtist(nextId: unknown, nextSource: MusicSource) {
-    if (nextSource !== 'netease' && nextSource !== 'qq' && nextSource !== 'apple') return
+    if (!isProviderId(nextSource)) return
     navigateTo({ type: 'artist', id: nextId, source: nextSource })
   }
 
@@ -295,15 +298,14 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
   const displayedSongs = searching
     ? matchingTrackIndices(search.songs, query).map((index) => search.songs[index]).filter((song) => !isCatalogUnavailable(song))
     : songs
+  const playableSongs = displayedSongs.filter(song => !isCatalogUnavailable(song))
 
   function playAll() {
-    const playableSongs = (searching ? displayedSongs : songs).filter((song) => !isCatalogUnavailable(song))
     if (playableSongs.length) usePlaylistStore.getState().setQueue(playableSongs, 0)
   }
 
   function playTrack(track: Track) {
     if (isCatalogUnavailable(track)) return
-    const playableSongs = (searching ? displayedSongs : songs).filter((song) => !isCatalogUnavailable(song))
     const index = playableSongs.findIndex((song) =>
       song.source === track.source && String(song.id) === String(track.id)
     )
@@ -312,9 +314,13 @@ export function ArtistPage({ id, source, initialState }: ArtistPageProps) {
 
   return (
     <ScrollArea className={styles.page} scrollRef={scrollRef}>
-      <BackButton className={styles.back} onClick={() => goBack()} ariaLabel="返回上一页" />
+      <BackButton autoHide={false} iconOnly className={styles.back} onClick={() => goBack()} ariaLabel="返回上一页" />
 
-      {artist && <ArtistHeader artist={artist} onPlayAll={playAll} />}
+      {artist ? <ArtistHeader artist={artist} onPlayAll={playAll} canPlay={playableSongs.length > 0} />
+        : <div className={styles.artistStatus} role="status">
+          <span>{!participating ? '请登录并启用歌手所属平台。' : artistLoaded ? '歌手资料暂时无法加载。' : '正在读取歌手资料…'}</span>
+          {participating && artistLoaded && <ActionButton label="重试" compact onClick={() => setArtistRetry(value => value + 1)} />}
+        </div>}
 
       <ArtistToolbar className={styles.subTabs} scrollRef={scrollRef} anchorRef={toolbarAnchorRef} active={active} onUserScroll={() => { cancelTabNavigation(); scrollRestored.current = true }}>
         {tab === 'songs' ? (

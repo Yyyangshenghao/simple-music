@@ -1,8 +1,12 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Track } from '../../types/domain'
 import { AppPlaylistCover } from './AppPlaylistCover'
+vi.mock('../../hooks/useTrackCover', async () => {
+  const { appPlaylistCovers } = await vi.importActual<typeof import('../../lib/app-playlist-presentation')>('../../lib/app-playlist-presentation')
+  return { useAppPlaylistCovers: appPlaylistCovers }
+})
 
 const track = (cover?: string): Track => ({ provider: 'netease', source: 'netease', type: 'song', id: cover, name: '歌曲', artist: '', artists: [], cover })
 

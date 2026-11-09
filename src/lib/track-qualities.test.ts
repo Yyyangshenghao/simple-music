@@ -42,6 +42,16 @@ describe('fetchTrackQualities', () => {
   })
 })
 
+describe('fetchTrackQualities 酷狗', () => {
+  it('酷狗曲目按 hash 探测，并按酷狗账号会话缓存', async () => {
+    apiGet.mockResolvedValue({ qualities: [{ level: 'standard', label: '标准', br: 128000 }] })
+    const track = { provider: 'kugou', source: 'kugou', type: 'song', id: 'abc', name: '歌', artist: '人', artists: [] } as Track
+    await loadTrackQualities(track)
+    expect(apiGet).toHaveBeenCalledWith('/api/kugou/song/qualities', { hash: 'abc' }, { timeoutMs: 60_000 })
+    expect(peekTrackQualities(track)).toEqual([{ level: 'standard', label: '标准', br: 128000 }])
+  })
+})
+
 describe('loadTrackQualities', () => {
   const track = { provider: 'netease', source: 'netease', type: 'song', id: 42, name: '歌', artist: '人', artists: [] } as unknown as Track
 
@@ -95,5 +105,14 @@ describe('loadTrackQualities', () => {
     expect(await loadTrackQualities(local)).toEqual([])
     expect(peekTrackQualities(local)).toBeUndefined()
     expect(apiGet).not.toHaveBeenCalled()
+  })
+})
+
+describe('loadTrackQualities 缺档结果', () => {
+  it('服务端标记 incomplete 时不缓存，下次重新探测', async () => {
+    const track = { provider: 'netease', source: 'netease', type: 'netease', id: 1, name: 'a', artist: 'b', artists: [] } as unknown as Track
+    apiGet.mockResolvedValue({ qualities: [{ level: 'lossless', label: '无损' }], incomplete: true })
+    expect(await loadTrackQualities(track)).toEqual([{ level: 'lossless', label: '无损' }])
+    expect(peekTrackQualities(track)).toBeUndefined()
   })
 })

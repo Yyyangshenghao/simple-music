@@ -1,6 +1,6 @@
 import type { Track } from '../types/domain'
 import type { ProviderRuntimeState } from '../stores/providers'
-import type { ProviderId } from '../providers/types'
+import { isFallbackOnlyProvider, type ProviderId } from '../providers/types'
 import type { OfflineCacheStatus } from './offline-cache'
 import { restoreLocalTrackUrls } from './local-track-urls'
 import { appPlaylistTrackKey } from '../stores/app-playlists'
@@ -27,7 +27,7 @@ export function appPlaylistTrackState(track: Track, context: AppPlaylistPlayback
   if (track.source !== 'apple' && offline && (offline.state === 'downloaded' || (offline.state === 'cached' && offline.entryId))) return { track, available: true, status: '可离线播放' }
   const provider = context.providers[track.source]
   const status = !provider.enabled ? '平台已停用'
-    : provider.auth !== 'authenticated' ? provider.auth === 'expired' ? '登录已失效' : '请先登录'
+    : !isFallbackOnlyProvider(track.source) && provider.auth !== 'authenticated' ? provider.auth === 'expired' ? '登录已失效' : '请先登录'
       : provider.playbackAvailable === false ? '平台暂不可用' : undefined
   return { track, available: !status, status: status || (track.pending ? '播放时加载详情' : undefined) }
 }

@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   onSettings: undefined as ((state: { mediaKeysEnabled: boolean }, previous: { mediaKeysEnabled: boolean }) => void) | undefined,
   onPlayer: undefined as ((state: unknown, prev: unknown) => void) | undefined
 }))
-vi.mock('../stores/settings', () => ({ useSettingsStore: {
+vi.mock('../stores/settings', () => ({ SETTINGS_STORAGE_KEY: 'test-settings', useSettingsStore: {
   getState: () => ({ mediaKeysEnabled: h.enabled }), subscribe: (cb: typeof h.onSettings) => { h.onSettings = cb; return h.stopSettings }
 } }))
 vi.mock('../stores/player', () => ({ usePlayerStore: {
@@ -174,5 +174,24 @@ describe('系统媒体键开关', () => {
     h.onPlayer?.(h.player, previous)
     expect(ms.playbackState).toBe('paused')
     expect(ms.setPositionState).toHaveBeenLastCalledWith()
+  })
+
+  it('识别结果更新系统歌名歌手，即使视频和专辑封面相同', async () => {
+    const video: Track = { provider: 'bilibili', source: 'bilibili', type: 'song', id: 'BV1BZbSzZEGT',
+      name: '周杰伦 - 晴天', artist: '上传账号', artists: [], duration: 240_000, cover: 'https://example.com/same.jpg' }
+    const matched: Track = { ...video, provider: 'netease', source: 'netease', id: 186016,
+      name: '晴天', artist: '周杰伦', album: '叶惠美' }
+    h.player = { currentTrack: video, duration: 240, position: 30, status: 'playing', rate: 1 }
+    const ms = { metadata: null as { data: unknown } | null, playbackState: 'none', setPositionState: vi.fn(), setActionHandler: vi.fn() }
+    vi.stubGlobal('navigator', { mediaSession: ms })
+    vi.stubGlobal('MediaMetadata', class { constructor(public data: unknown) {} })
+    const { useBilibiliCoverStore } = await import('../stores/bilibili-covers')
+    useBilibiliCoverStore.setState({ entries: {} })
+    const { initMediaSession } = await import('./media-session')
+    const stop = initMediaSession()
+    useBilibiliCoverStore.getState().rememberIdentity(video, matched)
+    expect(ms.metadata?.data).toMatchObject({ title: '晴天', artist: '周杰伦', album: '叶惠美' })
+    expect(h.player.currentTrack).toBe(video)
+    stop()
   })
 })

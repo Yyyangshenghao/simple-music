@@ -1,0 +1,75 @@
+/* 与账号按钮同尺寸同底色，保证音源行右侧控件对齐。 */
+.trigger,
+.placeholder {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+}
+
+.trigger {
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--sm-text-muted);
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.trigger svg { width: 18px; height: 18px; transition: transform 0.2s cubic-bezier(0.4, 0, 1, 1); }
+.trigger:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.trigger:active { background: var(--sm-fill-active); }
+.trigger[data-open] { background: var(--sm-fill-subtle); color: var(--sm-text-primary); }
+/* 齿轮随开合拧两齿，与歌词设置齿轮一致。 */
+.trigger[data-open] svg { transform: rotate(-90deg); transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+:global([data-icon-motion-off]) .trigger svg { transition: none; transform: none !important; }
+
+/* 浮层表面与共用下拉同一块：毛玻璃 + 浅投影，不描边。 */
+.panel {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  border: 0;
+  z-index: 530;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sm-bg-base) 94%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, .22);
+  color: var(--sm-text-primary);
+  overflow: hidden;
+}
+
+:global([data-reduce-transparency]) .panel { background: var(--sm-bg-base); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 10px;
+}
+
+.itemText { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 3px; }
+.itemText strong { font-size: 13px; font-weight: 600; }
+.itemText small { color: var(--sm-text-secondary); font-size: 11px; line-height: 1.5; }
+.itemControl { display: flex; flex: 0 0 auto; align-items: center; }
+
+@media (prefers-reduced-motion: reduce) { .trigger, .trigger svg { transition: none; } }
+
+.trigger:disabled { opacity: .35; cursor: not-allowed; background: transparent; }
+.trigger:disabled:hover { color: var(--sm-text-muted); }
+.heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 24px 14px; }
+.heading h2 { margin: 0; font-size: 18px; font-weight: 650; }
+.close { display: grid; place-items: center; width: 32px; height: 32px; padding: 6px; border: 0; border-radius: 9px; background: transparent; color: var(--sm-text-secondary); cursor: pointer; }
+.close svg { width: 20px; height: 20px; }
+.close:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
+.close:active { background: var(--sm-fill-active); }
+.body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 24px 20px; }
+.trigger:focus-visible, .close:focus-visible { outline: 2px solid var(--sm-text-primary); outline-offset: 2px; }

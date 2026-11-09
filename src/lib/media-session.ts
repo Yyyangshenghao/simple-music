@@ -1,4 +1,6 @@
 import { usePlayerStore } from '../stores/player'
+import { matchedBilibiliTrack, trackCoverOf, useBilibiliCoverStore } from '../stores/bilibili-covers'
+import { bilibiliTrackDisplay } from './bilibili-track-display'
 import { stepPlayback } from './playback-controls'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
@@ -12,11 +14,14 @@ function updateMetadata(track: Track | null): void {
     navigator.mediaSession.metadata = null
     return
   }
+  const cover = trackCoverOf(track)
+  const matched = matchedBilibiliTrack(track)
+  const display = bilibiliTrackDisplay(track, matched)
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: track.name,
-    artist: track.artist,
-    album: typeof track.album === 'string' ? track.album : undefined,
-    artwork: track.cover ? [{ src: track.cover }] : []
+    title: display?.name ?? track.name,
+    artist: display?.artist ?? track.artist,
+    album: matched?.album ?? (typeof track.album === 'string' ? track.album : undefined),
+    artwork: cover ? [{ src: cover }] : []
   })
 }
 
@@ -84,12 +89,17 @@ export function initMediaSession(): () => void {
   applyEnabled()
   const stopSettings = useSettingsStore.subscribe((state, previous) => {
     if (state.mediaKeysEnabled !== previous.mediaKeysEnabled) applyEnabled()
+    else if (state.bilibiliAlbumCover !== previous.bilibiliAlbumCover) refreshCover()
   })
 
   let lastPositionSync = 0
   const stopPlayer = usePlayerStore.subscribe((s, prev) => {
     if (!useSettingsStore.getState().mediaKeysEnabled) return
-    if (s.currentTrack !== prev.currentTrack) updateMetadata(s.currentTrack)
+    if (s.currentTrack !== prev.currentTrack) {
+      coverShown = trackCoverOf(s.currentTrack)
+      matchShown = matchedBilibiliTrack(s.currentTrack)
+      updateMetadata(s.currentTrack)
+    }
     if (s.currentTrack !== prev.currentTrack || s.status !== prev.status || s.duration !== prev.duration
       || s.rate !== prev.rate || (s.status !== 'playing' && s.position !== prev.position)) {
       syncPositionState()
@@ -101,11 +111,25 @@ export function initMediaSession(): () => void {
       lastPositionSync = Date.now()
     }
   })
+  // 身份识别完成后同步曲名、歌手及封面，封面不变也需要更新元数据。
+  let coverShown = trackCoverOf(usePlayerStore.getState().currentTrack)
+  let matchShown = matchedBilibiliTrack(usePlayerStore.getState().currentTrack)
+  const refreshCover = () => {
+    const track = usePlayerStore.getState().currentTrack
+    const cover = trackCoverOf(track)
+    const match = matchedBilibiliTrack(track)
+    if (cover === coverShown && match === matchShown) return
+    coverShown = cover
+    matchShown = match
+    if (useSettingsStore.getState().mediaKeysEnabled) updateMetadata(track)
+  }
+  const stopCover = useBilibiliCoverStore.subscribe(refreshCover)
   stopMediaSession = () => {
     if (stopped) return
     stopped = true
     stopSettings()
     stopPlayer()
+    stopCover()
     for (const action of Object.keys(handlers) as MediaSessionAction[]) {
       try { ms.setActionHandler(action, null) } catch { /* unsupported action */ }
     }

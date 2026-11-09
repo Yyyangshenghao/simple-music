@@ -1,4 +1,4 @@
-import { PROVIDER_IDS, isProviderId, type ProviderId } from '../providers/types'
+import { PROVIDER_IDS, isFallbackOnlyProvider, isProviderId, type ProviderId } from '../providers/types'
 
 export const PROVIDER_SETTINGS_STORAGE_KEY = 'simplemusic-provider-settings'
 export const PROVIDER_SETTINGS_SCHEMA = 2
@@ -44,6 +44,11 @@ export const DEFAULT_PROVIDER_PREFERENCES: ProviderPreferences = {
     netease: { enabled: true },
     qq: { enabled: true },
     apple: { enabled: false },
+    // 酷狗只有游客能力（付费曲仅试听），默认不参与，用户在设置里开启后排在播放顺序末尾。
+    kugou: { enabled: false },
+    bilibili: { enabled: false },
+    // 游客音源会员曲只有试听，默认关闭，由用户在设置里开启。
+    qishui: { enabled: false },
   },
   playbackOrder: ['netease', 'qq'],
   preferOriginSource: true,
@@ -70,7 +75,8 @@ export function normalizePlaybackOrder(
   for (const id of PROVIDER_IDS) {
     if (enabled.has(id) && !seen.has(id)) normalized.push(id)
   }
-  return normalized
+  // 兜底平台只在有账号的平台都放不了时才用，固定排在最后。
+  return [...normalized.filter((id) => !isFallbackOnlyProvider(id)), ...normalized.filter(isFallbackOnlyProvider)]
 }
 
 export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): ProviderPreferences {
@@ -80,6 +86,7 @@ export function migrateLegacyProviderSettings(legacy: LegacyProviderSettings): P
       netease: { enabled: first === 'netease' },
       qq: { enabled: first === 'qq' },
       apple: { enabled: first === 'apple' },
+      kugou: { enabled: first === 'kugou' }, bilibili: { enabled: false }, qishui: { enabled: false },
     },
     playbackOrder: [first],
     preferOriginSource: true,

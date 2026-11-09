@@ -4,6 +4,7 @@ import { sizedImage, CANVAS_COVER_PX } from '../../../../lib/image-size'
 import { usePlayerStore } from '../../../../stores/player'
 import { useSettingsStore } from '../../../../stores/settings'
 import { useCoverLyricPalette } from '../../../../hooks/useCoverLyricPalette'
+import { useCurrentTrackCover } from '../../../../hooks/useTrackCover'
 import { useBeatState, useLyricFrames, useStyleLine } from '../shared'
 import styles from './ParticlePreview.module.css'
 
@@ -54,7 +55,7 @@ function placeholderDots(): Dot[] {
 export function ParticlePreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dotsRef = useRef<Dot[]>(placeholderDots())
-  const coverUrl = usePlayerStore(state => state.currentTrack?.cover)
+  const coverUrl = useCurrentTrackCover()
   const palette = useCoverLyricPalette(coverUrl)
   const westernFont = useSettingsStore(state => state.lyrics3dFontFamily)
   const cjkFont = useSettingsStore(state => state.lyrics3dFontFamilyCjk)

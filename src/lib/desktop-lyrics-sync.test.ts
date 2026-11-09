@@ -5,6 +5,7 @@ import { useSettingsStore } from '../stores/settings'
 import { usePlayerStore } from '../stores/player'
 import { useGameModeStore } from '../stores/game-mode'
 import { useToastStore } from '../stores/toast'
+import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import type { Track } from '../types/domain'
 import type { AudioEngine } from './audio-engine'
 import { initDesktopLyricsSync } from './desktop-lyrics-sync'
@@ -390,5 +391,23 @@ describe('桌面歌词窗口同步', () => {
     setTrack({ ...h.track, id: 2 })
     render()
     expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({ line: '正在获取歌词…', translation: '' }))
+  })
+  it('无歌词时身份识别结果更新桌面曲名和歌手，切走后旧结果不覆盖新曲', () => {
+    const video: Track = { ...track, source: 'bilibili', provider: 'bilibili', id: 'BV1BZbSzZEGT',
+      name: '周杰伦 - 晴天', artist: '上传账号', duration: 240_000 }
+    const matched: Track = { ...track, source: 'netease', provider: 'netease', name: '晴天', artist: '周杰伦', duration: 240_000 }
+    useBilibiliCoverStore.setState({ entries: {} })
+    usePlayerStore.setState({ currentTrack: video })
+    useLyricsStore.setState({ trackKey: 'bilibili:BV1BZbSzZEGT', currentIndex: -1, lines: [], loading: false })
+    fx({ desktopLyricsLineMode: 'double' })
+    render()
+    useBilibiliCoverStore.getState().rememberIdentity(video, matched)
+    expect(window.desktop.updateDesktopLyrics).toHaveBeenLastCalledWith(expect.objectContaining({
+      line: '暂无歌词 · 晴天', nextLine: '周杰伦',
+    }))
+    usePlayerStore.setState({ currentTrack: track })
+    vi.mocked(window.desktop.updateDesktopLyrics).mockClear()
+    useBilibiliCoverStore.getState().rememberIdentity(video, matched)
+    expect(window.desktop.updateDesktopLyrics).not.toHaveBeenCalled()
   })
 })

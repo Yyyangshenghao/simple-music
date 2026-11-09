@@ -1,4 +1,4 @@
-import type { ProviderId } from '../providers/types'
+import { isGuestLoginProvider, type ProviderId } from '../providers/types'
 import { registerApiProviderAuthFailureHandler } from '../lib/api'
 import { ProviderAuthError } from '../lib/provider-account-session'
 import { providerAccountSession } from '../lib/provider-account-session'
@@ -28,6 +28,13 @@ export function expireProviderAccount(source: ProviderId, error: unknown): boole
   if (typeof window !== 'undefined' && window.desktop?.playbackRequest && window.desktop.playbackRole !== 'host') {
     void window.desktop.playbackRequest({ type: 'action', store: 'controls', action: 'expireAccount',
       args: [source, errorMessage(error), providerAccountSession(source)] }).catch(() => {})
+    return true
+  }
+  if (isGuestLoginProvider(source)) {
+    // 可选登录平台失效后退回游客会话；未登录时的 401 不提示。
+    if (!useProviderStore.getState().byId[source].accountLinked) return true
+    useProviderStore.getState().setAccountState(source, 'expired')
+    useToastStore.getState().show(`${SOURCE_BRAND[source].label}登录已失效，已切回游客模式`)
     return true
   }
   const alreadyExpired = useProviderStore.getState().byId[source].auth === 'expired'

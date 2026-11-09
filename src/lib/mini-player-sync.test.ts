@@ -6,6 +6,7 @@ import { usePlayerStore } from '../stores/player'
 import { useLyricsStore } from '../stores/lyrics'
 import { useAmbientStore } from '../stores/ambient'
 import { useGameModeStore } from '../stores/game-mode'
+import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { initMiniPlayerSync } from './mini-player-sync'
 import type { Track } from '../types/domain'
 
@@ -192,6 +193,21 @@ describe('宿主持有迷你条同步，只推送实际展示的数据', () => {
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ track: next, trackTitle: next.name }))
     usePlayerStore.setState({ currentTrack: null })
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ track: null, trackTitle: '' }))
+  })
+
+  it('识别结果到达后即使封面不变也更新歌名歌手，收藏目标保留 BV', () => {
+    const video: Track = { ...track, source: 'bilibili', provider: 'bilibili', id: 'BV1BZbSzZEGT',
+      name: '周杰伦 - 晴天', artist: '上传账号', artists: [], cover: 'https://example.com/same.jpg' }
+    const matched: Track = { ...track, name: '晴天', artist: '周杰伦', cover: video.cover }
+    useBilibiliCoverStore.setState({ entries: {} })
+    const request = vi.spyOn(useBilibiliCoverStore.getState(), 'request').mockImplementation(() => {})
+    usePlayerStore.setState({ currentTrack: video })
+    stopSync = initMiniPlayerSync()
+    update.mockClear()
+    useBilibiliCoverStore.getState().rememberIdentity(video, matched)
+    expect(update).toHaveBeenLastCalledWith({ trackTitle: '晴天', artistName: '周杰伦' })
+    expect(usePlayerStore.getState().currentTrack).toBe(video)
+    request.mockRestore()
   })
 
   it('宽度回传更新设置，停止后旧事件、store 变化和定时器均不再生效', () => {

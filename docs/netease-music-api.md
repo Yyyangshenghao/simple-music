@@ -21,6 +21,10 @@
 | `GET /api/login/status` | 查询登录态 | — | `login_status`(主) / `user_account`(兜底) | `{ loggedIn, userId, nickname, avatar, vipType, vipLevel, isVip, isSvip, vipLabel }` | 已用 |
 | `POST /api/logout` | 登出 | — | `logout` | 清 cookie | 已用 |
 
+账号核实按服务上下文和 Cookie 合并在途请求，成功资料缓存 30 秒；更换或清除 Cookie 立即失效，失败结果不缓存。播放、音质探测等请求复用该核实结果，避免每次操作重复查询账号。
+
+主账号查询明确返回风控码时不再请求备用账号接口；主、备用账号查询风控均作为非鉴权请求失败抛出，不返回权威未登录、不清除 Cookie。普通网络故障保留备用查询。
+
 ## 2. 发现页 / 首页推荐(`routes/netease.ts`)
 
 | 路由 | 用途 | 关键参数 | NCM 接口 | 返回要点 | 状态 |
@@ -62,7 +66,13 @@
 | `GET /api/song/qualities` | 探测账号当前实际可用音质 | `id` | 顺序调用 `song_url_v1` | `{ qualities }`;试听不计入可用档,SVIP 档按登录资料过滤 | 已用 |
 | `GET /api/song/detail` | 按 id 批量补详情(歌单懒加载窗口用) | `ids`(逗号分隔,≤200) | `song_detail` | 按请求 ids 顺序重排返回 | 已用 |
 | `GET /api/lyric` | 取歌词 | `id` | 优先 `lyric_new`(取 `yrc` 逐字歌词),兜底旧版 `lyric` | `{ lyric, tlyric, romalrc, yrc, source }` | 已用 |
-| `GET /api/song/comments` | 歌曲评论 | `id`、`limit`、`offset` | `comment_music` | 首页优先 `hotComments` | 已用 |
+| `GET /api/song/comments` | 歌曲评论 | `id`、`limit`、`offset` | `comment_music` | `comments` 连续最新评论，`hotComments` 仅首屏；`nextOffset` 按请求页大小推进 | 已用 |
+
+播放取链和音质探测优先使用客户端 `eapi`，该通道收到 `-460`、`-462` 或 `429` 时，针对同一请求有限尝试网页 `weapi` 通道，继续携带当前账号 Cookie。两个通道分别对本进程所有曲目和账号共用 60 秒冷却：客户端受限时仍可用网页通道播放，冷却结束后重新尝试客户端以保留高音质能力；两个通道均受限才停止旧接口兜底与逐档重试。音质标签以实际返回档位为准。音质探测在两个通道均受限时保留已获得的档位并返回 `incomplete: true`。60 秒是应用的止损等待时间，不表示上游限制必定解除；其他接口不在此冷却范围内。
+
+网页取链的参考实现见 [NeriPlayer 的 getSongUrl](https://github.com/cwuom/NeriPlayer/blob/master/modules/platform/src/main/java/moe/ouom/neriplayer/platform/netease/api/client/NeteaseClient.kt#L865)；本仓库使用现有依赖支持的 `crypto` 选项，不更换整个 API 依赖，也不将试听标为完整音频。
+
+播放栏不再随网易云切歌自动预探测档位，只在打开「更多」面板时查询。`lyric_new` 明确风控时不继续请求旧歌词接口；普通网络错误仍可兜底。
 
 ## 6. 歌单(`routes/netease.ts`)
 
@@ -76,12 +86,16 @@
 | `POST /api/playlist/order/update` | 同步漫游曲目顺序 | body `pid`、完整有序 `ids` 数组 | `song_order_update` | 核对本人普通歌单、当前完整 ID 集合与 Cookie 后排序 | 已用 |
 | `POST /api/playlist/desc/update` | 更新歌单简介 | body `id`、`desc` | `playlist_desc_update` | 漫游保存歌单写入日期/歌手说明 | 已用 |
 
+追加曲目时，主接口返回明确风控码不再尝试备用写入接口，沿用已有失败结果返回实际错误码。
+
 ## 7. 收藏 / 红心(`routes/netease.ts`)
 
 | 路由 | 用途 | 关键参数 | NCM 接口 | 返回要点 | 状态 |
 |---|---|---|---|---|---|
 | `GET /api/song/like/check` | 查询红心状态 | `ids`(逗号分隔) | 优先直接 `song_like_check`,失败兜底 `likelist`(取全量红心 id 集合再本地比对) | `{ liked: Record<id, boolean> }` | 已用 |
 | `POST /api/song/like` | 红心/取消红心 | body `id`、`like` | `like` | 需登录 | 已用 |
+
+红心直接查询成功且全部未喜欢时直接返回，不再额外拉取全量 `likelist`；查询失败或结构不可识别时保留兜底，明确风控时停止兜底。
 
 ## 8. 代理(`routes/netease.ts`)
 

@@ -1,3 +1,4 @@
+import { GUEST_LOGIN_PROVIDER_IDS } from '../providers/types'
 import { api } from './api'
 import { providerAccountSession } from './provider-account-session'
 import { useSettingsStore } from '../stores/settings'
@@ -37,6 +38,16 @@ export function initLoginStatusSync(): () => void {
           if (profile) settings.setQQProfile(profile.avatar, profile.nickname)
         }
         useProviderStore.getState().setAccountState(source, loggedIn ? 'authenticated' : 'anonymous', profile)
+      }).catch(() => {})
+  }
+
+  for (const source of GUEST_LOGIN_PROVIDER_IDS) {
+    const session = providerAccountSession(source)
+    void api.get<LoginStatusResponse>(`/api/${source}/login/status`, undefined, { signal: controller.signal })
+      .then(result => {
+        if (stopped || session !== providerAccountSession(source)) return
+        useProviderStore.getState().setAccountState(source, result.loggedIn ? 'authenticated' : 'anonymous',
+          result.loggedIn ? { avatar: result.avatar || '', nickname: result.nickname || '' } : undefined)
       }).catch(() => {})
   }
 

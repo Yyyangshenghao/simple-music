@@ -25,6 +25,34 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && (PROVIDER_IDS as readonly string[]).includes(value)
 }
 
+/**
+ * 不登录也能以游客身份使用、登录后再解锁账号能力的平台（酷狗、汽水）。
+ * 会话与游客平台一样始终可用；账号是否登录看运行态的 accountLinked。
+ */
+export const GUEST_LOGIN_PROVIDER_IDS = ['kugou', 'qishui'] as const satisfies readonly ProviderId[]
+export type GuestLoginProviderId = (typeof GUEST_LOGIN_PROVIDER_IDS)[number]
+
+export function isGuestLoginProvider(id: ProviderId): id is GuestLoginProviderId {
+  return (GUEST_LOGIN_PROVIDER_IDS as readonly ProviderId[]).includes(id)
+}
+
+/** 无需登录即有可用会话的平台。 */
+export function hasGuestSession(id: ProviderId): boolean {
+  return isGuestLoginProvider(id)
+}
+
+/**
+ * 跨源兜底排在最后的平台。主动搜索和点播独立于兜底顺序。
+ */
+export const FALLBACK_ONLY_PROVIDER_IDS: readonly ProviderId[] = ['bilibili']
+
+export function isFallbackOnlyProvider(id: ProviderId): boolean {
+  return FALLBACK_ONLY_PROVIDER_IDS.includes(id)
+}
+
+/** 有内容入口的平台；界面里列平台（内容切换、头像、我的库）时用它，游客可浏览本机内容。 */
+export const CONTENT_PROVIDER_IDS: readonly ProviderId[] = PROVIDER_IDS.filter((id) => !isFallbackOnlyProvider(id))
+
 export function providerIdOf(source: MusicSource): ProviderId | null {
   return isProviderId(source) ? source : null
 }

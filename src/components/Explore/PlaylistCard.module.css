@@ -74,3 +74,7 @@
 
 /* 私有歌单：卡片右下角的小锁，与曲数同一行。 */
 .privateBadge { position: absolute; right: 14px; bottom: 15px; display: grid; place-items: center; color: var(--sm-text-secondary); }
+
+.card[data-quiet] { height: 100%; padding: 8px 8px 10px; }
+.card[data-quiet]:active { background: var(--sm-fill-active); }
+.card[data-quiet] .meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

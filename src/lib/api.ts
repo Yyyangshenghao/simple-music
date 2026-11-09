@@ -14,7 +14,7 @@ function apiToken(): string | undefined {
 }
 
 export type QueryParams = Record<string, string | number | boolean | undefined | null>
-export type ApiProviderSource = 'netease' | 'qq' | 'apple'
+export type ApiProviderSource = 'netease' | 'qq' | 'apple' | 'kugou' | 'qishui'
 
 let providerAuthFailureHandler: ((source: ApiProviderSource, status: 401 | 403) => void) | null = null
 
@@ -34,6 +34,9 @@ function providerSourceForApiUrl(input: string): ApiProviderSource | null {
   const path = url.pathname
   if (path.startsWith('/api/apple-music/')) return 'apple'
   if (path.startsWith('/api/qq/')) return 'qq'
+  // 酷狗只有账号端点会回 401/403，游客目录接口失败走 502，不会误判登录失效。
+  if (path.startsWith('/api/kugou/')) return 'kugou'
+  if (path === '/api/qishui/user/playlists') return 'qishui'
   if (
     path.startsWith('/api/netease/')
     || path.startsWith('/api/song/')
@@ -91,7 +94,7 @@ async function request<T>(input: string, init?: RequestInit & { timeoutMs?: numb
     if (!res.ok) {
       // Apple Music 的配置、订阅和播放页错误由本地服务端转换为可操作的提示。
       const path = new URL(input, 'http://127.0.0.1').pathname
-      const body = source === 'apple' || path.startsWith('/api/karaoke/') || path.startsWith('/api/downloads/') || path.startsWith('/api/wallpaper-engine/') || /^\/api\/(netease|qq)\/playlist-management(?:\/|$)/.test(path)
+      const body = source === 'apple' || path.startsWith('/api/bilibili/') || path.startsWith('/api/karaoke/') || path.startsWith('/api/downloads/') || path.startsWith('/api/wallpaper-engine/') || /^\/api\/(netease|qq)\/playlist-management(?:\/|$)/.test(path)
         ? await res.json().catch(() => null) as { error?: string } | null
         : null
       const message = body?.error || `HTTP ${res.status}`

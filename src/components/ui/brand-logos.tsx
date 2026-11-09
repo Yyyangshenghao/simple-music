@@ -1,58 +1,34 @@
-// 官方品牌图标（矢量路径），来源：
-// - 网易云音乐：simple-icons（CC0），官方品牌色 #D43C33
-// - QQ音乐：Wikipedia File:QQ_Music2023.svg（2023 版官方双色图标）
-// - Apple：Simple Icons（CC0），https://simpleicons.org/icons/apple
-// - Apple Music：按 Apple Inc. 官方图标比例重绘的纯矢量版（原内嵌 JPEG 圆角边缘有白边）
-// - 酷狗音乐：按官方「蓝底白 K」圆形图标的比例重绘的纯矢量版
+// 平台图标统一用官方 App 图标的方形原图，由 .logo 统一裁成圆角方形：
+// - 网易云音乐、酷狗音乐、汽水音乐：App Store 中国区官方上架图标（mzstatic.com）
+// - QQ音乐、Apple Music：Google Play 官方上架图标（QQ 原图透明底，铺白底与 App Store 版一致）
+// - 哔哩哔哩：官方 App 图标当前为活动版，改用官方 bilibili 字标（Wikimedia Commons「Bilibili 2023.svg」，公有领域）置于品牌粉 #FB7299 方底
+// - Apple：Simple Icons（CC0），https://simpleicons.org/icons/apple（仅作 SourceName 里的文字标）
+import styles from './brand-logos.module.css'
 
-const appleMusicIconUrl = new URL('../../assets/apple-music-icon.svg', import.meta.url).href
+const neteaseUrl = new URL('../../assets/brand/netease.png', import.meta.url).href
+const qqMusicUrl = new URL('../../assets/brand/qq-music.png', import.meta.url).href
+const appleMusicUrl = new URL('../../assets/brand/apple-music.png', import.meta.url).href
+const kugouUrl = new URL('../../assets/brand/kugou.png', import.meta.url).href
+const qishuiUrl = new URL('../../assets/brand/qishui.png', import.meta.url).href
+const bilibiliUrl = new URL('../../assets/brand/bilibili.svg', import.meta.url).href
 
-export function AppleMusicIcon({ className }: { className?: string }) {
-  return <img className={className} src={appleMusicIconUrl} alt="" aria-hidden="true" />
+function brandImage(src: string) {
+  return function BrandLogo({ className }: { className?: string }) {
+    return <img className={className ? `${styles.logo} ${className}` : styles.logo} src={src} alt="" aria-hidden="true" draggable={false} />
+  }
 }
+
+export const NeteaseLogo = brandImage(neteaseUrl)
+export const QQMusicLogo = brandImage(qqMusicUrl)
+export const AppleMusicIcon = brandImage(appleMusicUrl)
+export const KugouLogo = brandImage(kugouUrl)
+export const QishuiLogo = brandImage(qishuiUrl)
+export const BilibiliLogo = brandImage(bilibiliUrl)
 
 export function AppleLogo({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path fill="currentColor" d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04c-2.04.027-3.91 1.183-4.961 3.014c-2.117 3.675-.546 9.103 1.519 12.09c1.013 1.454 2.208 3.09 3.792 3.039c1.52-.065 2.09-.987 3.935-.987c1.831 0 2.35.987 3.96.948c1.637-.026 2.676-1.48 3.676-2.948c1.156-1.688 1.636-3.325 1.662-3.415c-.039-.013-3.182-1.221-3.22-4.857c-.026-3.04 2.48-4.494 2.597-4.559c-1.429-2.09-3.623-2.324-4.39-2.376c-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83c-1.207.052-2.662.805-3.532 1.818c-.78.896-1.454 2.338-1.273 3.714c1.338.104 2.715-.688 3.559-1.701" />
-    </svg>
-  )
-}
-
-export function NeteaseLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      {/* simple-icons 的音符是镂空的，会透出底色；垫一层略小的白圆，让音符始终是官方的白色。 */}
-      <circle cx="12" cy="12" r="11.5" fill="#fff" />
-      <path
-        fill="#D43C33"
-        d="M13.046 9.388a3.919 3.919 0 0 0-.66.19c-.809.312-1.447.991-1.666 1.775a2.269 2.269 0 0 0-.074.81c.048.546.333 1.05.764 1.35a1.483 1.483 0 0 0 2.01-.286c.406-.531.355-1.183.24-1.636-.098-.387-.22-.816-.345-1.249a64.76 64.76 0 0 1-.269-.954zm-.82 10.07c-3.984 0-7.224-3.24-7.224-7.223 0-.98.226-3.02 1.884-4.822A7.188 7.188 0 0 1 9.502 5.6a.792.792 0 1 1 .587 1.472 5.619 5.619 0 0 0-2.795 2.462 5.538 5.538 0 0 0-.707 2.7 5.645 5.645 0 0 0 5.638 5.638c1.844 0 3.627-.953 4.542-2.428 1.042-1.68.772-3.931-.627-5.238a3.299 3.299 0 0 0-1.437-.777c.172.589.334 1.18.494 1.772.284 1.12.1 2.181-.519 2.989-.39.51-.956.888-1.592 1.064a3.038 3.038 0 0 1-2.58-.44 3.45 3.45 0 0 1-1.44-2.514c-.04-.467.002-.93.128-1.376.35-1.256 1.356-2.339 2.622-2.826a5.5 5.5 0 0 1 .823-.246l-.134-.505c-.37-1.371.25-2.579 1.547-3.007.329-.109.68-.145 1.025-.105.792.09 1.476.592 1.709 1.023.258.507-.096 1.153-.706 1.153a.788.788 0 0 1-.54-.213c-.088-.08-.163-.174-.259-.247a.825.825 0 0 0-.632-.166.807.807 0 0 0-.634.551c-.056.191-.031.406.02.595.07.256.159.597.217.82 1.11.098 2.162.54 2.97 1.296 1.974 1.844 2.35 4.886.892 7.233-1.197 1.93-3.509 3.177-5.889 3.177zM0 12c0 6.627 5.373 12 12 12s12-5.373 12-12S18.627 0 12 0 0 5.373 0 12Z"
-      />
-    </svg>
-  )
-}
-
-export function KugouLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="12" cy="12" r="12" fill="#1E8CF5" />
-      <path fill="none" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" d="M8.6 6.6v10.8M16 6.8l-5.6 5.4 5.9 5.2" />
-    </svg>
-  )
-}
-
-export function QQMusicLogo({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 169.03343 177.05359" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <g transform="translate(-14.693387,-35.461841)">
-        <g transform="matrix(2.519673,0,0,2.519673,-493.77296,1465.4508)">
-          <circle cx="235.34128" cy="-530.80383" r="33.542732" fill="#fdcd18" />
-          <path
-            fill="#0daf52"
-            d="m 240.45119,-527.94916 c -0.84214,-1.1847 -1.64146,-2.29803 -2.44077,-3.39709 -3.06881,-4.2535 -6.15188,-8.50701 -9.23496,-12.74624 -1.95547,-2.69769 -3.89667,-5.39538 -5.88068,-8.06453 -0.59949,-0.79931 -0.67086,-1.64145 -0.39966,-2.55496 0.55667,-1.89837 1.8841,-3.21153 3.45419,-4.29632 2.86897,-1.98402 6.10906,-2.99744 9.50615,-3.59692 2.95462,-0.51385 5.88068,-1.14188 8.46419,-2.76906 0.6994,-0.44248 1.28461,-1.04197 1.92692,-1.57009 0.17128,-0.14273 0.32829,-0.29974 0.65658,-0.58521 0.2141,1.04197 0.42821,1.91265 0.57094,2.78333 0.42821,2.56923 0.2712,5.0671 -0.88496,7.4365 -1.57008,3.19726 -4.13931,5.19555 -7.50786,6.22324 -2.05538,0.65659 -4.18213,0.81359 -6.33743,0.79932 -0.15701,0 -0.31402,0.0428 -0.58522,0.0714 0.52812,0.92778 0.99915,1.79846 1.51299,2.6406 2.06966,3.38282 4.13932,6.76564 6.19471,10.16273 l 6.76564,11.21897 c 0.58521,0.9706 1.19897,1.9412 1.76991,2.92607 1.32744,2.28376 2.29803,4.66744 2.11248,7.40795 -0.18556,2.68342 -1.15616,5.02427 -2.82616,7.07966 -2.72623,3.35427 -6.26606,5.29547 -10.49102,6.05196 -3.98231,0.6994 -7.77906,0.25693 -11.30461,-1.75564 -3.96804,-2.25521 -6.50872,-6.35171 -5.90923,-11.23324 0.38538,-3.21154 1.98401,-5.86641 4.33914,-8.05026 2.51214,-2.31231 5.4953,-3.72538 8.82103,-4.36769 2.45504,-0.4853 4.91008,-0.45675 7.33658,0.19983 0.0714,0.0143 0.157,-0.0143 0.37111,-0.0143 z"
-          />
-        </g>
-      </g>
     </svg>
   )
 }

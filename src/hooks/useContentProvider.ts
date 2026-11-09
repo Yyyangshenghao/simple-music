@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
+  CONTENT_PROVIDER_IDS,
   resolveContentProvider,
   shouldPersistResolvedContentProvider,
 } from '../lib/content-provider-preference'
-import { PROVIDER_IDS, type ProviderId } from '../providers/types'
+import type { ProviderId } from '../providers/types'
 import { useProviderStore } from '../stores/providers'
 
 const PREFERRED_PROVIDER_GRACE_MS = 3000
@@ -18,7 +19,7 @@ export function useContentProvider(): {
   const select = useProviderStore((state) => state.setContentSource)
   const [fallbackAllowed, setFallbackAllowed] = useState(false)
   const sources = useMemo(
-    () => PROVIDER_IDS.filter((source) => byId[source].enabled && byId[source].auth === 'authenticated'),
+    () => CONTENT_PROVIDER_IDS.filter((source) => byId[source].enabled && byId[source].auth === 'authenticated'),
     [byId]
   )
   const waitingForPreferred = !!preferred

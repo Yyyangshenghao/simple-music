@@ -1,417 +1,128 @@
-!ifndef MUI_BGCOLOR
-  !define MUI_BGCOLOR "FFFFFF"
-!endif
-!ifndef MUI_TEXTCOLOR
-  !define MUI_TEXTCOLOR "111217"
-!endif
-!ifndef MUI_DIRECTORYPAGE_BGCOLOR
-  !define MUI_DIRECTORYPAGE_BGCOLOR "FFFFFF"
-!endif
-!ifndef MUI_DIRECTORYPAGE_TEXTCOLOR
-  !define MUI_DIRECTORYPAGE_TEXTCOLOR "111217"
-!endif
-!ifndef MUI_INSTFILESPAGE_COLORS
-  !define MUI_INSTFILESPAGE_COLORS "5227FF FFFFFF"
-!endif
-!ifndef MUI_FINISHPAGE_LINK_COLOR
-  !define MUI_FINISHPAGE_LINK_COLOR "5227FF"
-!endif
-!ifndef MUI_HEADERIMAGE
-  !define MUI_HEADERIMAGE
-!endif
-!ifndef MUI_HEADERIMAGE_BITMAP_STRETCH
-  !define MUI_HEADERIMAGE_BITMAP_STRETCH "FitControl"
-!endif
-!ifndef MUI_HEADERIMAGE_UNBITMAP_STRETCH
-  !define MUI_HEADERIMAGE_UNBITMAP_STRETCH "FitControl"
-!endif
-
-!ifndef BUILD_UNINSTALLER
-  !ifndef MUI_CUSTOMFUNCTION_GUIINIT
-    !define MUI_CUSTOMFUNCTION_GUIINIT SimpleMusicGuiInit
-  !endif
-!else
-  !ifndef MUI_CUSTOMFUNCTION_UNGUIINIT
-    !define MUI_CUSTOMFUNCTION_UNGUIINIT un.SimpleMusicGuiInit
-  !endif
-!endif
-
 !include LogicLib.nsh
 !include FileFunc.nsh
-!include nsDialogs.nsh
 !include WinMessages.nsh
+!include MUI2.nsh
+!include "${PROJECT_DIR}\build\windows-files.nsh"
+!include "${PROJECT_DIR}\build\windows-processes.nsh"
 
-!ifndef BUILD_UNINSTALLER
-  Var SimpleMusicWelcomePage
-  Var SimpleMusicHeroFont
-  Var SimpleMusicTitleFont
-  Var SimpleMusicBodyFont
-  Var SimpleMusicSmallFont
-  Var SimpleMusicDirectoryPage
-  Var SimpleMusicDirectoryInput
+!ifdef BUILD_UNINSTALLER
+  !include "${PROJECT_DIR}\dist\nsis-safe\remove-files.nsh"
+  Var SimpleMusicUninstallDataNote
 !else
-  Var SimpleMusicUnWelcomePage
-  Var SimpleMusicHeroFont
-  Var SimpleMusicTitleFont
-  Var SimpleMusicBodyFont
-  Var SimpleMusicSmallFont
+  !include "${PROJECT_DIR}\dist\nsis-safe\install-files.nsh"
+  !include "${PROJECT_DIR}\build\windows-directory.nsh"
+  !define MUI_CUSTOMFUNCTION_ABORT SimpleMusicAbort
+  Var SimpleMusicDirectoryBeforeConfirm
 !endif
+
+; 仅扩展文件归属与失败恢复；页面、字体、配色和按钮使用 NSIS 默认实现。
+!macro customHeader
+  !ifdef BUILD_UNINSTALLER
+    !insertmacro SimpleMusicPathFunctions "un."
+    !insertmacro SimpleMusicRemovalFunctions
+  !else
+    !insertmacro SimpleMusicPathFunctions ""
+    !insertmacro SimpleMusicDirectoryFunctions
+    !insertmacro SimpleMusicInstallFunctions
+    !addincludedir "${PROJECT_DIR}\node_modules\app-builder-lib\templates\nsis"
+    !cd "${PROJECT_DIR}\dist\nsis-safe"
+  !endif
+!macroend
 
 !macro customInit
   !ifndef BUILD_UNINSTALLER
-    Call SimpleMusicUsePreferredInstallDir
+    ; NSIS 给 $INSTDIR 赋值时会删掉 /，并损坏其后的中文，正斜杠路径必须先从原始参数规范化。
+    Push $R0
+    !insertmacro GetDParameter $R0
+    ${If} $R0 != ""
+      Push "$R0"
+      Call SimpleMusicNormalizeInstallDir
+      Pop $R0
+      ${IfNot} ${Errors}
+        StrCpy $INSTDIR "$R0"
+      ${EndIf}
+    ${EndIf}
+    Pop $R0
+    Call SimpleMusicSelectInstallDirectory
   !endif
 !macroend
 
-!macro customWelcomePage
-  Page custom SimpleMusicWelcomeShow
+; 使用标准目录页，并在离开页面时验证最终路径。
+; 配置关闭打包器自动插入的目录页，避免出现两次。
+!macro customPageAfterChangeDir
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE SimpleMusicSelectInstallDirectory
+  !define MUI_PAGE_CUSTOMFUNCTION_LEAVE SimpleMusicDirectoryLeave
+  !insertmacro MUI_PAGE_DIRECTORY
 !macroend
 
 !macro customUnWelcomePage
-  UninstPage custom un.SimpleMusicUnWelcomeShow
+  !define MUI_PAGE_CUSTOMFUNCTION_PRE un.SimpleMusicUninstallWelcome
+  !define MUI_WELCOMEPAGE_TEXT "卸载 Simple Music 程序和快捷方式。安装目录中的额外文件会保留。$\r$\n$\r$\n$SimpleMusicUninstallDataNote"
+  !insertmacro MUI_UNPAGE_WELCOME
 !macroend
 
-!macro customInstallMode
-  StrCpy $isForceCurrentInstall "1"
+!macro customUnInstall
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "--delete-app-data" $1
+  ${IfNot} ${Errors}
+    !insertmacro SimpleMusicCheckPath "un." "$APPDATA\${APP_FILENAME}"
+    !ifdef APP_PRODUCT_FILENAME
+      !insertmacro SimpleMusicCheckPath "un." "$APPDATA\${APP_PRODUCT_FILENAME}"
+    !endif
+    !ifdef APP_PACKAGE_NAME
+      !insertmacro SimpleMusicCheckPath "un." "$APPDATA\${APP_PACKAGE_NAME}"
+    !endif
+  ${EndIf}
 !macroend
 
-!macro customPageAfterChangeDir
-  Page custom SimpleMusicDirectoryShow SimpleMusicDirectoryLeave
-!macroend
-
-!macro customFinishPage
-  !ifndef HIDE_RUN_AFTER_FINISH
-    Function SimpleMusicFinishStartApp
-      ${If} ${isUpdated}
-        StrCpy $1 "--updated"
-      ${Else}
-        StrCpy $1 ""
-      ${EndIf}
-      ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
-    FunctionEnd
-
-    !define MUI_FINISHPAGE_RUN
-    !define MUI_FINISHPAGE_RUN_FUNCTION "SimpleMusicFinishStartApp"
-  !endif
-  !insertmacro MUI_PAGE_FINISH
-!macroend
-
-; 深色标题栏 + 常驻按钮(上一步/下一步/取消)着色,安装器和卸载器共用同一份实现。
-; NSIS 要求卸载上下文里被 Call 的函数名必须带 un. 前缀,因此正文写成宏,两边各自套一层同名/un. 前缀的 Function。
-!macro SimpleMusicTintCommonControlsBody
-  SetCtlColors $HWNDPARENT "111217" "FFFFFF"
-
-  GetDlgItem $0 $HWNDPARENT 1
-  ${If} $0 <> 0
-    SetCtlColors $0 "111217" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 2
-  ${If} $0 <> 0
-    SetCtlColors $0 "111217" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 3
-  ${If} $0 <> 0
-    SetCtlColors $0 "111217" "FFFFFF"
-  ${EndIf}
-
-  GetDlgItem $0 $HWNDPARENT 1028
-  ${If} $0 <> 0
-    SetCtlColors $0 "4B5263" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 1256
-  ${If} $0 <> 0
-    SetCtlColors $0 "4B5263" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 1034
-  ${If} $0 <> 0
-    SetCtlColors $0 "" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 1035
-  ${If} $0 <> 0
-    SetCtlColors $0 "" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 1037
-  ${If} $0 <> 0
-    SetCtlColors $0 "111217" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 1038
-  ${If} $0 <> 0
-    SetCtlColors $0 "4B5263" "FFFFFF"
-  ${EndIf}
-  GetDlgItem $0 $HWNDPARENT 1039
-  ${If} $0 <> 0
-    SetCtlColors $0 "" "FFFFFF"
-  ${EndIf}
-
-  FindWindow $0 "#32770" "" $HWNDPARENT
-  ${If} $0 <> 0
-    SetCtlColors $0 "111217" "FFFFFF"
-
-    GetDlgItem $1 $0 1000
-    ${If} $1 <> 0
-      SetCtlColors $1 "111217" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1001
-    ${If} $1 <> 0
-      SetCtlColors $1 "111217" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1004
-    ${If} $1 <> 0
-      SetCtlColors $1 "5227FF" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1006
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1016
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1019
-    ${If} $1 <> 0
-      SetCtlColors $1 "111217" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1020
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1023
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1024
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1027
-    ${If} $1 <> 0
-      SetCtlColors $1 "111217" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1201
-    ${If} $1 <> 0
-      SetCtlColors $1 "111217" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1202
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1203
-    ${If} $1 <> 0
-      SetCtlColors $1 "111217" "FFFFFF"
-    ${EndIf}
-    GetDlgItem $1 $0 1204
-    ${If} $1 <> 0
-      SetCtlColors $1 "4B5263" "FFFFFF"
-    ${EndIf}
-  ${EndIf}
+; 安装段在任何写入或旧版处理之前再次调用，覆盖静默安装及页面重置路径。
+!macro SimpleMusicValidateInstallDirectory
+  Call SimpleMusicValidateInstallDirectory
 !macroend
 
 !ifndef BUILD_UNINSTALLER
 
-Function SimpleMusicGuiInit
-  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 20, *i 1, i 4) i .r0'
-  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 19, *i 1, i 4) i .r0'
-  Call SimpleMusicTintCommonControls
-FunctionEnd
-
-Function SimpleMusicTintCommonControls
-  !insertmacro SimpleMusicTintCommonControlsBody
-FunctionEnd
-
-Function SimpleMusicUsePreferredInstallDir
-  ${GetParameters} $R0
-  ClearErrors
-  ${GetOptions} $R0 "/D=" $R1
-  ${IfNot} ${Errors}
-  ${AndIf} $R1 != ""
-    StrCpy $INSTDIR "$R1"
-  ${EndIf}
-FunctionEnd
-
-Function SimpleMusicNormalizeInstallDir
-  Exch $0
-  StrLen $1 "$0"
-  ${If} $1 == 2
-    StrCpy $2 "$0" 1 1
-    ${If} $2 == ":"
-      StrCpy $0 "$0\Simple Music"
-    ${EndIf}
-  ${ElseIf} $1 == 3
-    StrCpy $2 "$0" 1 1
-    StrCpy $3 "$0" 1 2
-    ${If} $2 == ":"
-    ${AndIf} $3 == "\"
-      StrCpy $0 "$0Simple Music"
-    ${EndIf}
-  ${EndIf}
-  Exch $0
-FunctionEnd
-
-Function SimpleMusicWelcomeShow
-  Call SimpleMusicUsePreferredInstallDir
-
-  nsDialogs::Create 1018
-  Pop $SimpleMusicWelcomePage
-  ${If} $SimpleMusicWelcomePage == error
-    Abort
-  ${EndIf}
-
-  SetCtlColors $SimpleMusicWelcomePage "111217" "FFFFFF"
-  CreateFont $SimpleMusicHeroFont "Microsoft YaHei UI" 24 700
-  CreateFont $SimpleMusicTitleFont "Microsoft YaHei UI" 11 700
-  CreateFont $SimpleMusicBodyFont "Microsoft YaHei UI" 9 400
-  CreateFont $SimpleMusicSmallFont "Microsoft YaHei UI" 8 400
-
-  ${NSD_CreateLabel} 22u 20u 82u 10u "SIMPLE MUSIC"
+Function SimpleMusicValidateInstallDirectory
+  Push $0
+  Push "$INSTDIR"
+  Call SimpleMusicNormalizeInstallDir
   Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
-  SetCtlColors $0 "5227FF" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 42u 226u 30u "Simple Music 安装"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicHeroFont 1
-  SetCtlColors $0 "111217" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 78u 36u 2u ""
-  Pop $0
-  SetCtlColors $0 "" "5227FF"
-
-  ${NSD_CreateLabel} 22u 96u 238u 24u "为这台电脑安装 Simple Music。下一步可以自由选择安装位置。"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicBodyFont 1
-  SetCtlColors $0 "4B5263" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 130u 238u 12u "默认位置：$INSTDIR"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicTitleFont 1
-  SetCtlColors $0 "5227FF" "FFFFFF"
-
-  nsDialogs::Show
-FunctionEnd
-
-Function SimpleMusicDirectoryBrowse
-  nsDialogs::SelectFolderDialog "选择 Simple Music 安装文件夹" "$INSTDIR"
-  Pop $0
-  ${If} $0 != error
-  ${AndIf} $0 != ""
-    Push "$0"
-    Call SimpleMusicNormalizeInstallDir
+  ${If} ${Errors}
     Pop $0
-    StrCpy $INSTDIR "$0"
-    SendMessage $SimpleMusicDirectoryInput ${WM_SETTEXT} 0 "STR:$INSTDIR"
-  ${EndIf}
-FunctionEnd
-
-Function SimpleMusicDirectoryShow
-  Call SimpleMusicUsePreferredInstallDir
-
-  nsDialogs::Create 1018
-  Pop $SimpleMusicDirectoryPage
-  ${If} $SimpleMusicDirectoryPage == error
+    MessageBox MB_ICONEXCLAMATION|MB_OK "请选择磁盘中的独立安装文件夹，不能使用系统目录或个人文件夹根目录。" /SD IDOK
+    SetErrorLevel 2
     Abort
   ${EndIf}
-
-  SetCtlColors $SimpleMusicDirectoryPage "111217" "FFFFFF"
-  CreateFont $SimpleMusicTitleFont "Microsoft YaHei UI" 15 700
-  CreateFont $SimpleMusicBodyFont "Microsoft YaHei UI" 9 400
-  CreateFont $SimpleMusicSmallFont "Microsoft YaHei UI" 8 500
-
-  ${NSD_CreateLabel} 22u 12u 238u 20u "选择安装位置"
+  StrCpy $INSTDIR "$0"
   Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicTitleFont 1
-  SetCtlColors $0 "111217" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 40u 238u 24u "你可以使用默认路径，也可以选择其它磁盘或文件夹。安装器会自动创建缺失的目录。"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicBodyFont 1
-  SetCtlColors $0 "4B5263" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 76u 238u 10u "安装目录"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
-  SetCtlColors $0 "5227FF" "FFFFFF"
-
-  ${NSD_CreateText} 22u 94u 178u 15u "$INSTDIR"
-  Pop $SimpleMusicDirectoryInput
-  SendMessage $SimpleMusicDirectoryInput ${WM_SETFONT} $SimpleMusicBodyFont 1
-  SetCtlColors $SimpleMusicDirectoryInput "111217" "FFFFFF"
-
-  ${NSD_CreateBrowseButton} 210u 93u 50u 17u "浏览..."
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
-  ${NSD_OnClick} $0 SimpleMusicDirectoryBrowse
-
-  ${NSD_CreateLabel} 22u 122u 238u 12u "选盘符会自动建 Simple Music 子文件夹。"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
-  SetCtlColors $0 "6B7280" "FFFFFF"
-
-  nsDialogs::Show
 FunctionEnd
 
 Function SimpleMusicDirectoryLeave
-  ${NSD_GetText} $SimpleMusicDirectoryInput $0
-  ${If} $0 == ""
-    MessageBox MB_ICONEXCLAMATION|MB_OK "请选择安装文件夹。"
+  StrCpy $SimpleMusicDirectoryBeforeConfirm "$INSTDIR"
+  Call SimpleMusicSelectInstallDirectory
+  ${If} $SimpleMusicDirectoryBeforeConfirm != $INSTDIR
+    ; 盘符补子目录、旧版迁移或目录冲突改变目标后，留在原生页面再次确认。
+    ; 本文件先于 MUI 页面宏编译，不能引用 $mui.DirectoryPage.Directory；1019 是原生目录页输入框。
+    FindWindow $0 "#32770" "" $HWNDPARENT
+    GetDlgItem $0 $0 1019
+    SendMessage $0 ${WM_SETTEXT} 0 "STR:$INSTDIR"
+    MessageBox MB_ICONINFORMATION|MB_OK "安装位置已调整为：$\r$\n$INSTDIR$\r$\n$\r$\n请确认后再点击安装。" /SD IDOK
     Abort
   ${EndIf}
-  Push "$0"
-  Call SimpleMusicNormalizeInstallDir
-  Pop $0
-  StrCpy $INSTDIR "$0"
-  SendMessage $SimpleMusicDirectoryInput ${WM_SETTEXT} 0 "STR:$INSTDIR"
 FunctionEnd
 
 !else
 
-Function un.SimpleMusicGuiInit
-  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 20, *i 1, i 4) i .r0'
-  System::Call 'dwmapi::DwmSetWindowAttribute(p $HWNDPARENT, i 19, *i 1, i 4) i .r0'
-  Call un.SimpleMusicTintCommonControls
-FunctionEnd
-
-Function un.SimpleMusicTintCommonControls
-  !insertmacro SimpleMusicTintCommonControlsBody
-FunctionEnd
-
-Function un.SimpleMusicUnWelcomeShow
-  nsDialogs::Create 1018
-  Pop $SimpleMusicUnWelcomePage
-  ${If} $SimpleMusicUnWelcomePage == error
-    Abort
+Function un.SimpleMusicUninstallWelcome
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "--delete-app-data" $1
+  ${If} ${Errors}
+    StrCpy $SimpleMusicUninstallDataNote "保留设置、登录状态和播放器数据。"
+  ${Else}
+    StrCpy $SimpleMusicUninstallDataNote "此次卸载还会删除播放器数据，包括设置和登录状态。"
   ${EndIf}
-
-  SetCtlColors $SimpleMusicUnWelcomePage "111217" "FFFFFF"
-  CreateFont $SimpleMusicHeroFont "Microsoft YaHei UI" 24 700
-  CreateFont $SimpleMusicTitleFont "Microsoft YaHei UI" 11 700
-  CreateFont $SimpleMusicBodyFont "Microsoft YaHei UI" 9 400
-  CreateFont $SimpleMusicSmallFont "Microsoft YaHei UI" 8 400
-
-  ${NSD_CreateLabel} 22u 20u 82u 10u "SIMPLE MUSIC"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicSmallFont 1
-  SetCtlColors $0 "5227FF" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 42u 226u 30u "卸载 Simple Music"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicHeroFont 1
-  SetCtlColors $0 "111217" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 78u 36u 2u ""
-  Pop $0
-  SetCtlColors $0 "" "5227FF"
-
-  ${NSD_CreateLabel} 22u 96u 238u 24u "即将从这台电脑移除 Simple Music 程序文件。点击下一步继续，或点击取消放弃卸载。"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicBodyFont 1
-  SetCtlColors $0 "4B5263" "FFFFFF"
-
-  ${NSD_CreateLabel} 22u 130u 238u 12u "卸载位置：$INSTDIR"
-  Pop $0
-  SendMessage $0 ${WM_SETFONT} $SimpleMusicTitleFont 1
-  SetCtlColors $0 "5227FF" "FFFFFF"
-
-  nsDialogs::Show
 FunctionEnd
 
 !endif

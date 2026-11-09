@@ -6,7 +6,8 @@ import type { Track } from '../types/domain'
 
 /**
  * 歌词来源与播放平台分开：网易云、QQ 已登录且参与播放时沿用账号；否则在设置允许时以游客身份查询，
- * 请求带 guest=1，服务端不附带账号 Cookie，失败也不会触发账号失效处理。Apple Music 歌词只走账号。
+ * 请求带 guest=1，服务端不附带账号 Cookie，失败也不会触发账号失效处理。汽水歌词始终按游客查询。
+ * Apple Music 歌词只走账号。
  */
 export type LyricServiceMode = 'account' | 'guest'
 export type LyricCatalogSource = 'netease' | 'qq'
@@ -18,12 +19,18 @@ function participating(source: ProviderId): boolean {
 
 /** 设置中关闭的平台不参与歌词查询，账号与游客都不用。 */
 export function lyricPlatformEnabled(source: ProviderId): boolean {
-  return useSettingsStore.getState().lyricsPlatformSources[source] !== false
+  // 酷狗的歌词就是酷狗歌词库，沿用「酷狗歌词」开关。
+  if (source === 'kugou') return useSettingsStore.getState().lyricsKugouFallback
+  // 兜底平台没有歌词，播放时沿用原曲目的歌词。
+  if (source === 'bilibili') return false
+  return (useSettingsStore.getState().lyricsPlatformSources as Partial<Record<ProviderId, boolean>>)[source] !== false
 }
 
 export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {
   if (!lyricPlatformEnabled(source)) return null
   if (participating(source)) return 'account'
+  // 汽水未参与播放时也能按歌名、歌手搜索同曲并取逐字歌词。
+  if (source === 'qishui') return 'guest'
   if (source !== 'netease' && source !== 'qq') return null
   const state = useProviderStore.getState().byId[source]
   // 启动时登录状态尚未确认：已启用的平台先不按游客查询，确认后由歌词加载器重新取词，避免先游客后账号重复请求。
@@ -31,11 +38,11 @@ export function lyricServiceMode(source: ProviderId): LyricServiceMode | null {
   return useSettingsStore.getState().lyricsGuestSources[source] ? 'guest' : null
 }
 
-/** 可用于歌词的平台：参与播放的平台按播放顺序在前，其余可游客查询的网易云、QQ 在后。 */
+/** 可用于歌词的平台：参与播放的平台按播放顺序在前，其余可游客查询的网易云、QQ、汽水在后。 */
 export function lyricServiceSources(): ProviderId[] {
   const { playbackOrder } = useProviderStore.getState()
   const sources = playbackOrder.filter(source => participating(source) && lyricPlatformEnabled(source))
-  for (const source of ['netease', 'qq'] as const) {
+  for (const source of ['netease', 'qq', 'qishui'] as const) {
     if (!sources.includes(source) && lyricServiceMode(source) === 'guest') sources.push(source)
   }
   return sources

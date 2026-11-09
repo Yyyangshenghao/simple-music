@@ -1,0 +1,20 @@
+{
+  "environment": "独立userData macOS Electron dev，真实主窗口→后台命令与存档，无mock账号/设置通道；仅启用汽水游客本地内容，不登录或播放",
+  "checks": [
+    "真实鼠标关闭继续听",
+    "真实拖动调整排序",
+    "后台快照与存档一致",
+    "主窗口重载后配置保留",
+    "退出应用并使用同一profile冷启动后，后台及主窗口配置保留"
+  ],
+  "expected": [
+    {
+      "id": "saved",
+      "enabled": true
+    },
+    {
+      "id": "listening",
+      "enabled": false
+    }
+  ]
+}

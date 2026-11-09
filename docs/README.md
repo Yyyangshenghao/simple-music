@@ -16,6 +16,8 @@
 
 | 需要了解 | 文档 |
 |---|---|
+| 六个在线来源与本地音乐的内容、账号、播放和保存边界 | [平台功能地图](music-sources.md)、[2.7.0 内容扩充候选](specs/2026-11-05-platform-content-2.7.0.md) |
+| 各音源探索页的模块开关、排序与只读实时预览 | [探索页模块设置](explore-modules.md) |
 | 进程、数据流、启动顺序 | [架构总览](architecture.md) |
 | 文件与模块归属 | [目录结构](directory-structure.md)、[主进程](modules/electron-main.md)、[API Server](modules/server.md)、[渲染层](modules/renderer.md)、[悬浮窗](modules/overlays.md) |
 | 播放、跨源兜底与缓存 | [播放系统](playback-system.md) |
@@ -28,10 +30,14 @@
 
 ## 最近开发与验证
 
-以下为 2.6.0 任务队列与库控件的阶段证据；发布范围与最终验证以 [2.6.0 发行说明](release-notes-2.6.0.md) 为准。
+以下包含 2.7.0 平台内容与 2.6.0 任务队列、库控件的阶段证据。各版本发布范围以对应发行说明为准，当前平台能力见[平台功能地图](music-sources.md)。
 
 | 需要了解 | 文档 |
 |---|---|
+| 2.7.0 第一批平台内容的实现、真实读取与界面验收边界 | [平台内容实施与验证](reviews/2026-11-05-platform-content.md) |
+| 2.7.0 网易/QQ 评论与网易歌曲精选 | [评论与精选验证](reviews/2026-11-05-platform-comments.md) |
+| 2.7.0 B 站视频直达、本地专辑分组与验证范围 | [视频直达与本地专辑验证](reviews/2026-11-05-bilibili-local-albums.md) |
+| 2.7.0 探索模块自由组合、实时预览与跨平台界面验证 | [探索模块验收](reviews/2026-11-05-explore-modules.md) |
 | 下载/伴奏队列的现行实现、分阶段截图与验证边界 | [任务队列验收](reviews/2026-10-28-task-queue-verification.md)、[设计决策](specs/2026-10-28-task-queue-bubble-design.md) |
 | 伴奏、本地、离线的共用控件及最新鼠标验收缺口 | [音乐库与任务操作统一](reviews/2026-10-28-library-controls.md) |
 

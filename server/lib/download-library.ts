@@ -19,7 +19,7 @@ import { downloadFileBaseName, exportDownloadedSong, getSongDownloadConfig } fro
 const INDEX_FILE = 'song-downloads-index.json'
 const INDEX_SCHEMA = 1
 
-type OnlineSource = 'netease' | 'qq'
+type OnlineSource = 'netease' | 'qq' | 'kugou'
 
 export interface DownloadRecord {
   origin: AudioCacheOriginInput
@@ -60,7 +60,7 @@ async function withIndex<T>(userDataDir: string, task: () => Promise<T>): Promis
 function isRecord(value: unknown): value is DownloadRecord {
   if (!value || typeof value !== 'object') return false
   const record = value as Partial<DownloadRecord>
-  return !!record.origin && (record.origin.source === 'netease' || record.origin.source === 'qq')
+  return !!record.origin && (record.origin.source === 'netease' || record.origin.source === 'qq' || record.origin.source === 'kugou')
     && typeof record.origin.id === 'string' && !!record.origin.id
     && typeof record.filePath === 'string' && isAbsolute(record.filePath)
     && Number.isSafeInteger(record.size) && record.size! >= 0

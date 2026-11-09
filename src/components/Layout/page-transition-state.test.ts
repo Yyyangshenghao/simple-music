@@ -8,6 +8,37 @@ const playlist: Playlist = { source: 'netease', provider: 'netease', type: 'play
 const detail: AppView = { type: 'playlist', from: 'library', playlist }
 
 describe('歌单和专辑往返页面', () => {
+  it('深层歌单打开评论保留详情和来源页，连续切评论不累积页面', () => {
+    const origin = initialPageTransition('explore', 0)
+    const detailState = nextPageTransition(origin, detail, 1, 'push')
+    const track = { source: 'netease', provider: 'netease', type: 'song', id: 1, name: '歌曲', artist: '歌手', artists: [] } as const
+    const comments: AppView = { type: 'song-comments', track: { ...track, artists: [] } }
+    const opened = nextPageTransition(detailState, comments, 2, 'push')
+    expect(opened.origin).toBe(detailState.current)
+    expect(opened.commentOrigin).toBe(detailState)
+    const another = nextPageTransition(opened, { type: 'song-comments', track: { ...track, artists: [], id: 2 } }, 3, 'push')
+    expect(another.commentOrigin).toBe(detailState)
+    const returned = nextPageTransition(another, detail, 4, 'pop')
+    expect(returned.current.key).toBe(detailState.current.key)
+    expect(returned.origin).toBe(origin.current)
+    expect(returned.commentOrigin).toBeUndefined()
+    expect(nextPageTransition(opened, 'settings', 3, 'push').commentOrigin).toBeUndefined()
+  })
+
+  it.each(['netease', 'qq', 'kugou'] as const)('%s 歌单浏览进入详情后保留列表实例，返回可沿用分页与滚动', source => {
+    const view: AppView = { type: 'provider-playlists', source }
+    const origin = initialPageTransition(view, 0)
+    const opened = nextPageTransition(origin, { ...detail, playlist: { ...playlist, source } }, 1, 'push')
+    expect(opened.origin).toBe(origin.current)
+    expect(nextPageTransition(opened, view, 2, 'pop').current.key).toBe(origin.current.key)
+  })
+
+  it('Apple 歌曲榜与歌单榜保持独立页面身份', () => {
+    const songs: AppView = { type: 'toplist', source: 'apple', chartType: 'songs' }
+    const playlists: AppView = { type: 'toplist', source: 'apple' }
+    expect(initialPageTransition(songs, 0).current.key).not.toBe(initialPageTransition(playlists, 0).current.key)
+  })
+
   it('应用歌单详情保留我的库分类实例，且与同 ID 的平台歌单具有独立路由', () => {
     const origin = initialPageTransition('library', 0)
     const opened = nextPageTransition(origin, { type: 'app-playlist', id: '1' }, 1, 'push')

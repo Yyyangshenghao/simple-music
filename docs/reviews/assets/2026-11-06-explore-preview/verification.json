@@ -1,0 +1,83 @@
+{
+  "environment": "隔离macOS Electron dev，模拟账号与歌曲；未真实登录或播放",
+  "bounds": [
+    {
+      "viewportWidth": 1536,
+      "viewportHeight": 864,
+      "theme": "dark",
+      "panel": {
+        "x": 401,
+        "y": 64,
+        "width": 793,
+        "height": 559.5
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 170,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "viewportWidth": 1536,
+      "viewportHeight": 864,
+      "theme": "light",
+      "panel": {
+        "x": 401,
+        "y": 64,
+        "width": 793,
+        "height": 559.5
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 170,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "viewportWidth": 960,
+      "viewportHeight": 540,
+      "theme": "dark",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "viewportWidth": 960,
+      "viewportHeight": 540,
+      "theme": "light",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    }
+  ],
+  "checks": [
+    "四种窗口/主题预览边界",
+    "开关同步挂载卸载实际栏目",
+    "拖动排序同步实际栏目顺序",
+    "真实鼠标点击预览不导航不播放",
+    "内部滚动",
+    "关闭面板卸载预览",
+    "启用期间账号切换重建预览，过期请求不覆盖新会话"
+  ],
+  "errors": []
+}

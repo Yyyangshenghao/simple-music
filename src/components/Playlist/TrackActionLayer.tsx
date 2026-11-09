@@ -4,6 +4,8 @@ import { usePlaylistStore } from '../../stores/playlist'
 import { useToastStore } from '../../stores/toast'
 import { placePopover, useTrackActionsStore, type PopoverAnchor } from '../../stores/track-actions'
 import { resolveAppPlaylistTracks } from '../../lib/batch-tracks'
+import { supportsSongComments } from '../../lib/song-comments'
+import { useNavigationStore } from '../../stores/navigation'
 import type { Track } from '../../types/domain'
 import { AddToPlaylistDialog } from './AddToPlaylistDialog'
 import styles from './TrackActionLayer.module.css'
@@ -96,6 +98,12 @@ function TrackContextMenu({ track, anchor, onClose }: { track: Track; anchor: Po
       }}>
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 11h10M4 16h7m7-3v8m-4-4h8" /></svg>添加到播放队列
       </button>
+      {supportsSongComments(track) && <button type="button" role="menuitem" onClick={() => {
+        onClose()
+        useNavigationStore.getState().navigateTo({ type: 'song-comments', track })
+      }}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true"><path d="M20 15a3 3 0 0 1-3 3H9l-5 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3Z" /><path d="M8 8h8M8 12h5" /></svg>查看评论
+      </button>}
     </div>
   </Floating>
 }

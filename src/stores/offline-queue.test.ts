@@ -17,7 +17,7 @@ describe('离线库播放队列', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: false, auth: 'anonymous' },
       qq: { enabled: false, auth: 'expired' },
-      apple: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
     useSettingsStore.setState({ playMode: 'order' })
     usePlaylistStore.setState({ queue: [], queueIndex: -1, shuffleOrder: [] })

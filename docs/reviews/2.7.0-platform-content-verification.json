@@ -1,0 +1,91 @@
+{
+  "date": "2026-11-05",
+  "branch": "dev/2.7.0",
+  "typecheck": "passed",
+  "tests": {
+    "filesPassed": 417,
+    "testsPassed": 3976,
+    "testsSkipped": 2
+  },
+  "liveApi": {
+    "netease:playlists": {
+      "count": 30,
+      "hasMore": true
+    },
+    "qq:playlists": {
+      "count": 20,
+      "hasMore": true
+    },
+    "kugou:playlists": {
+      "count": 30,
+      "hasMore": true
+    },
+    "netease:weekly": {
+      "count": 100
+    }
+  },
+  "liveElectronNavigation": {
+    "firstCount": 60,
+    "secondCount": 90,
+    "returnedCount": 90,
+    "returnedScroll": 500
+  },
+  "rendererFixtures": {
+    "listCount": 48,
+    "played": {
+      "sources": [
+        "qishui",
+        "qishui",
+        "qishui",
+        "qishui",
+        "qishui",
+        "qishui",
+        "qishui",
+        "qishui",
+        "qishui"
+      ],
+      "count": 9,
+      "index": 0
+    },
+    "applePlayed": {
+      "sources": [
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple",
+        "apple"
+      ],
+      "count": 28,
+      "index": 0
+    },
+    "weeklyCount": 28,
+    "errors": []
+  },
+  "limitations": [
+    "Apple 真实账号未连接，榜单与专辑流程使用构造数据验收",
+    "未重验真实整曲播放和 Apple 受保护播放"
+  ]
+}

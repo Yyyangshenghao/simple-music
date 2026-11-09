@@ -2,25 +2,26 @@
 
 入口 `electron/main.ts` 同步设置应用名称与 Chromium 开关，再按启动角色分流；普通实例动态加载 `electron/application.ts`：单实例锁 → 收紧默认 session 权限 → `registerIpc()` → `bootServer()`(内嵌 API server、Apple Music 会话、随机端口 + 持久化 token)→ `createPlaybackHost(port, token)` → `createMainWindow(port, token)` → `createTray()`。分离实例不加载完整应用入口。启动时按平台追加 Chromium 性能开关(win32 用 ANGLE d3d11,darwin 用 metal)；不再全局禁用后台节流，播放宿主与壁纸窗口按需单独设置 `backgroundThrottling: false`。
 
-Windows 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘”或“退出应用”，点击“确定”后保留后台播放或执行完整退出清理；点击“取消”保留主窗口。勾选“记住选择”后跳过下次询问，可在「设置 → 界面与窗口 → 关闭窗口」改回每次询问或调整默认操作。偏好由主进程保存到 `userData/window-close.json`，写入失败不执行关闭；启动未完成或渲染进程异常时使用带相同记住选项的原生询问框兜底。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
+Windows 与 Linux 关闭主窗口时默认弹出应用内确认框：选择“缩回托盘”或“退出应用”，点击“确定”后保留后台播放或执行完整退出清理；点击“取消”保留主窗口。勾选“记住选择”后跳过下次询问，可在「设置 → 界面与窗口 → 关闭窗口」改回每次询问或调整默认操作。偏好由主进程保存到 `userData/window-close.json`，写入失败不执行关闭；启动未完成或渲染进程异常时使用带相同记住选项的原生询问框兜底。托盘主动退出不再询问。macOS 关闭主窗口仍直接隐藏，退出行为不变。
 
 > **安全约定(2026-07-24 加,2026-07-27 文档补录)**:全窗口 `sandbox: true`(主窗 `window-manager`、三个悬浮窗 `overlay-manager`、登录窗 `login-manager`)—— preload 本就是纯 IPC 转发无 node 依赖,沙盒下 `electron.vite.config.ts` preload 输出改 CommonJS(`.cjs`)即可,`process.argv` 端口/token 注入在沙盒下仍可用。API token 由主进程 `randomBytes(32)` 生成、持久化 `userData/api-token`,经 argv `--simplemusic-server-token=` 与端口一并注入渲染层,server 侧 `isAllowedToken` 校验(详见 [server.md](server.md) 安全边界)。
 
 ## 目录
 
 - `server-host.ts` — 内嵌启动 `server/index.ts` 的 `startServer`,注入 `app.getPath('userData')` 与 `userData/api-token`;`before-quit` 时关闭。
-- `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。登录页优先打开上次确认的账号地区（`userData/apple-music-storefront`），避免代理节点把登录页带到与账号不同的地区；没有记录或退出登录后仍由官网按出口 IP 决定；未登录时用户可在“音源与账户”的 Apple Music 行选择登录地区（`setLoginStorefront`），登录后下拉只读显示账号地区。登录后页面实例未跟上授权时（例如登录在弹窗内完成）会用一次账号接口探针识别并重载官网一次。
+- `modules/apple-music-web-session.ts` / `apple-music-chrome-page.ts` — Apple 官网授权与 MusicKit 播放会话；发布版在应用内后台窗口运行，开发态借本机 Chrome 承载受保护媒体。`server-host.ts` 启动、恢复并在退出时关闭会话。登录页优先打开上次确认的账号地区（`userData/apple-music-storefront`），避免代理节点把登录页带到与账号不同的地区；没有记录或退出登录后仍由官网按出口 IP 决定；未登录时用户可在“音源与账户”的 Apple Music 行齿轮里选择登录地区（`setLoginStorefront`），登录后下拉只读显示账号地区。登录后页面实例未跟上授权时（例如登录在弹窗内完成）会用一次账号接口探针识别并重载官网一次。
 - `modules/playback-host.ts` — 独立隐藏播放窗口、受信命令转发、超时/断开清理与快照转发；游戏模式确认就绪后释放 UI，托盘/Dock/设置菜单按需重建。详见 [独立播放宿主](../playback-host.md)。
 - `modules/session-proxy.ts` — 把代理设置同步到主窗口、网易/QQ 登录分区、播放宿主与 Apple Music 分区（`setProxy` 不跨会话继承）；Apple 可用独立出口，其余会话共用默认出口，规则里不带账号密码。另负责：在内存探测分区 `simplemusic-proxy-probe`（始终 system 模式）里按默认/Apple 两个出口分别 `resolveProxy` 解析系统代理，`server-host.ts` 启动时最多等 1.5 秒同步给 Node 侧，之后每 30 秒、窗口获焦与唤醒时重读，变化才通知；以及 `app` 的 `login` 事件里给用户自己填写的 HTTP 代理补认证，同一代理 10 秒内失败 3 次后不再重试。
 - `modules/karaoke-helper.ts` + `karaoke-helper.ts` — K 歌 AI 分离进程：首个分离任务时以 `--simplemusic-karaoke-helper` 拉起同一可执行文件（独立 userData、不进单实例锁、macOS 不进 Dock、关闭渲染进程降级）。`modules/karaoke-native.ts` 按需加载原生 ONNX WebGPU；不可用时回退至分离 Worker 的浏览器 WebGPU。原生路径只经受信私有 IPC 串行传递单块频谱，Worker 负责音频前后处理及分块落盘。只接受播放宿主的 `karaoke:request`，任务完成、失败、取消、系统内存严重紧张、宿主失效或退出时结束；新任务等待旧进程实际退出后再启动，避免资源重叠。测量与平台边界见[架构优化验收](../reviews/2026-10-27-karaoke-architecture.md)。
 - `modules/window-manager.ts` — 主窗口创建(无边框、16:9 窗口化尺寸计算)、窗口状态推送(`window:state-changed`)、dev/prod 渲染 URL 解析。
-- `modules/window-close.ts` — Windows 关闭确认、记住偏好与原生兜底；待确认请求带序号，重载后可恢复、过期结果丢弃。
+- `modules/window-close.ts` — Windows/Linux 关闭确认、记住偏好与原生兜底；待确认请求带序号，重载后可恢复、过期结果丢弃。
 - `modules/overlay-manager.ts` — 桌面歌词/壁纸/迷你播放条三个悬浮窗的创建、定位(跟随显示器变化)、状态缓存与转发;见 [overlays.md](overlays.md)。
 - `modules/hotkey-manager.ts` — `globalShortcut` 全局热键注册,触发后向渲染层发 `hotkey:triggered`；返回每项注册结果，录入期间释放全局绑定。
 - `modules/settings-menu.ts` — 原生设置菜单与可配置快捷键（macOS 应用菜单，其他平台首个菜单）；输入框中保留正常文本编辑，同键已注册全局入口时避免重复触发。
 - `modules/macos-lyrics-window.ts` / `lyrics-native-backdrop.ts` — macOS 歌词窗的非激活交互与局部原生毛玻璃；关闭窗口时释放底框视图，不可用时回退，详见 [悬浮窗](overlays.md)。
 - `modules/tray-manager.ts` — 系统托盘菜单与主窗口恢复/隐藏、播放控制和退出。
-- `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server。
+- `modules/login-manager.ts` — 弹出独立登录窗口(网易 `persist:simplemusic-netease-login` / QQ `persist:simplemusic-qqmusic-login` 分区),从 session 抓 cookie 交给渲染层再传给 server;现作为扫码浮层里「用网页登录」的备用入口。
+- `modules/netease-qr-login.ts` — 网易应用内扫码(`login:netease-qr-{start,poll,cancel}`):在网易登录分区开隐藏的官方首页并点开登录弹窗,取二维码 canvas 交渲染层显示,分区出现 MUSIC_U 即返回 Cookie。直接调 NCM 扫码接口会被 App 判「设备环境异常」(缺网页反爬指纹),所以不走 server;隐藏页 30 秒无轮询或 6 分钟后自动销毁。
 - `modules/font-manager.ts` — 按平台枚举、归一化并缓存系统字体,供设置页三个字体域共用。
 - `modules/update-installer.ts` + `update-installer-logic.ts` — 安装更新包:Windows 走 NSIS `/S --force-run` 静默安装并自动重启;macOS(adhoc 签名,用不了 Squirrel.Mac)先把 dmg 里的 `.app` 解到 `userData/updates/staging/` 并核对 bundle id/版本/可执行文件,再由 detached 脚本等主进程退出后做两次同卷 rename 替换、重启新版;预检或核对不满足就回退为 `shell.openPath` 打开 dmg,脚本失败则回滚旧版并打开 dmg。后者是可单测的纯逻辑(预检、脚本生成)。启动时 `cleanupUpdatesOnStartup` 清旧安装包与替换残留,上次替换结果经 IPC `app:last-update-install` 交渲染层提示一次。详见 [build-and-release.md](../build-and-release.md) §5。
 - `modules/safe-open.ts` — 外部链接统一出口 `openExternalSafely()`。`shell.openExternal` 会把 URL 交给系统协议处理器,`file://`、自定义 scheme 能拉起本地程序;而窗口里的链接不都可信(登录窗加载的是音乐平台页面,主窗渲染的歌词/评论/歌手简介来自上游接口),因此只放行 http/https/mailto。主窗还挡了 `will-navigate`:导航离开应用入口就等于把 preload 的 `desktop` 桥交给外部页面。

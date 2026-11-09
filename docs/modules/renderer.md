@@ -24,6 +24,8 @@ UI/UX 改动先读 [产品理念](../../PRODUCT.md)、[设计准则](../../DESIG
 
 大多数页面只在访问时加载，不再启动后集中预热；专辑详情组件随主界面加载，使歌手页和搜索页首次打开专辑时能直接承接封面共享元素转场。其他页面首次挂载等待模块时，转场内部的 Suspense 显示“正在加载页面…”及静态标记，避免空白等待。`LyricsScene` 将 Canvas、Three.js 效果和歌词舞台独立成动态模块，纯歌词及未打开歌词时不加载；`LiquidEther` 也按需加载，等待期间显示静态霞光，背景被详情或 3D 歌词遮住时卸载场景。主题、字体与布局仅在相关设置变化时写根节点样式。
 
+探索页模块目录由 `lib/explore-modules.ts` 定义，`ProviderRecommendationSection` 按音源配置只挂载已启用模块；推荐舞台保留在 `RecommendationStage`。设置页音源齿轮通过 `ExploreModuleSettings` 编辑、`ExplorePagePreview` 只读复用实际内容；预览按账号 session 重建并隔离封面布局组，卸载时释放尺寸观察器。`settings.setExploreLayout` 经 `playback-shared-stores.ts` 的命令白名单交给后台保存，快照同步主窗口。用户入口和存档规则见 [探索页模块设置](../explore-modules.md)。
+
 ## stores(zustand,单文件单 store)
 
 | store | 职责 |
@@ -33,14 +35,14 @@ UI/UX 改动先读 [产品理念](../../PRODUCT.md)、[设计准则](../../DESIG
 | `playlist.ts` | 播放队列 + 用户歌单/书架(Shelf)数据 |
 | `app-playlists.ts` | 应用自己的跨源歌单，独立版本存档 `simplemusic-app-playlists`；包含网易/QQ/Apple/本地曲目，保存成功后才更新快照；单曲移出可短时撤销，恢复时保留期间新增歌曲，不重建已删除歌单；旧同步关联仅兼容忽略，编辑不写回平台 |
 | `navigation.ts` | 页面路由(`AppView`:explore/library/roam/shuange/settings/release-history + search/artist/artistSongs/toplist/playlist/app-playlist 对象视图)；history/future 双栈上限 50，记录 lastAction 供转场方向；歌手页按历史条目保存标签、搜索词与滚动位置，搜索页保存分类、平台筛选与页面及歌手列表的滚动位置 |
-| `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
+| `settings.ts` | 通用用户设置，localStorage key `simplemusic-settings`；含探索模块开关/顺序、热键、主题、字体、音质/播放、歌词、迷你条与性能设置 |
 | `providers.ts` | 多平台启用、登录态、资料、全局内容平台与播放优先级；平台偏好使用 `simplemusic-provider-settings`，内容平台使用 `simplemusic-content-provider` |
 | `visual.ts` | 可视化 FxParams/预设/性能模式;默认值来自 `src/data/default-fx-archive.json` |
 | `ambient.ts` | 氛围三色(主/副/点缀),来自封面取色 |
 | `lyrics.ts` | 歌词行 + 当前行 tick(由播放进度驱动)+ 3D 歌词布局 |
 | `lyrics-source.ts` | 宿主持有的四级歌词来源顺序、按歌记忆、会话异常状态和小型候选预览；完整候选只留在宿主当前曲目的有界缓存 |
 | `window.ts` | 只读窗口状态,由主进程经 `useDesktopBridge` 推送 |
-| `window-close.ts` | Windows 关闭偏好与待确认状态，订阅主进程广播；持久化由主进程负责，应用内确认框在主可视层之外常驻 |
+| `window-close.ts` | Windows/Linux 关闭偏好与待确认状态，订阅主进程广播；持久化由主进程负责，应用内确认框在主可视层之外常驻 |
 | `recent.ts` / `likes.ts` | 最近播放持久化、在线平台红心状态与乐观更新 |
 | `roam.ts` / `shuange.ts` | 漫游歌手图谱与保存歌单、刷歌会话/自适应推荐状态 |
 | `sleep-timer.ts` / `update.ts` | 睡眠定时状态机、应用更新检查/下载任务 |
@@ -61,7 +63,7 @@ UI/UX 改动先读 [产品理念](../../PRODUCT.md)、[设计准则](../../DESIG
 
 ## providers / lib
 
-Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或退出应用后，点击“确定”才执行，支持记住选择；「设置 → 界面与窗口 → 关闭窗口」可调整默认行为。确认期间通过鼠标选择和确认，暂停键盘导航、激活及应用内、菜单快捷键分发。
+Windows/Linux 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或退出应用后，点击“确定”才执行，支持记住选择；「设置 → 界面与窗口 → 关闭窗口」可调整默认行为。确认期间通过鼠标选择和确认，暂停键盘导航、激活及应用内、菜单快捷键分发。
 
 快捷键设置位于「设置 → 快捷键」，支持播放/暂停、切歌、音量、喜欢、桌面歌词、迷你模式与打开设置的应用内和全局绑定。点击录入，Esc 取消，Delete/Backspace 或行内清除按钮取消绑定；修改即时保存，启动恢复。录入期间暂停应用菜单快捷键；刷新、退出等菜单组合及常见系统保留键不能绑定。打开设置默认是 macOS `⌘+,` / Windows `Ctrl+,`，默认不注册全局键；同步到原生设置菜单，输入框内也可使用。旧存档补上此入口，自定义或清除此项会保留。默认用 `CommandOrControl` 适配 macOS / Windows，全局组合增加 Alt 与 Shift；迷你模式应用内为 `CommandOrControl+Shift+P`。系统和其他软件的自定义占用由注册结果提示。完整的旧默认配置会升级，自定义与主动清除的配置保留。输入框、可编辑区与输入法组合输入期间避让应用内动作。
 
@@ -70,7 +72,8 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 系统媒体键开关控制网易云、QQ 和本地播放的 Media Session；关闭时保留空处理器，防止浏览器默认媒体动作继续控制音频。Apple Music 官网会话独立管理媒体键，本开关不控制它；应用内与全局快捷键仍复用 player/playlist store 控制 Apple 播放。全局注册失败逐行显示原因，不猜测占用它的软件。
 
 - `providers/types.ts` — `MusicProvider` 与 catalog/playback/recommendations/library/history/playlistWriter/toplists 能力契约。
-- `providers/registry.ts` — 网易/QQ/Apple Music Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。
+- `components/Settings/QrLoginDialog.tsx` + `lib/qr-login.ts` — 网易/QQ（QQ、微信）/酷狗共用的应用内扫码浮层，`useQrLoginDialog.show(source)` 打开；各平台差异在 adapter 里。网易、QQ 成功后拿 Cookie 走 `applyLoginCookie`（与网页登录窗同一条宿主链路），酷狗走 `refreshKugouAccount`；网易、QQ 底部保留「用网页登录」备用入口。Apple Music 仍是 Apple ID 网页授权。
+- `providers/registry.ts` — 网易/QQ/Apple Music/酷狗/哔哩哔哩/汽水 Provider 注册表；新功能先判断对应 capability 是否存在。`local` 不在该在线注册表中。酷狗、汽水不登录即可用（`hasGuestSession`）：provider store 里会话固定为 `authenticated`，默认不启用，启用后排在播放顺序末尾。酷狗、汽水都可扫码登录（`isGuestLoginProvider`），登录更新 `accountLinked` 与资料，登出或失效退回游客并保留启用状态。酷狗登录后开放我的歌单和我喜欢，汽水登录后开放我的歌单。二者都没有红心、上报与歌单写入能力，酷狗可进播放缓存与下载（`isCacheableSource`），汽水暂不落盘。
 - `providers/*-provider.ts` — 平台能力实现；`legacy-provider-adapter.ts` 连接仍使用 `MusicService` 的旧页面。
 
 - `music-service.ts` / `service-registry.ts` — 兼容层接口与 service 单例；实体操作必须 `serviceFor(entity.source)`，不得从当前内容平台猜来源。
@@ -155,7 +158,7 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 
 歌手页分类栏保留顶栏下方吸顶，背景仅承托圆角标签组与搜索框，避免全宽深色横条截断封面氛围色；滚动后增强局部底色，防止歌曲文字透入。热门单曲、专辑与相似歌手复用同一标签容器，搜索框的背景与模糊覆盖仅在歌手页局部生效。
 
-设置页的音源与账户列表为各平台提供登录入口：网易云与 QQ 复用头像菜单的原生登录窗口和 Cookie 交换流程，取消不改账号状态，失败显示提示。Apple Music 的登录、退出与取消授权在设置音源行和右上角头像菜单共用连接状态；头像菜单直接打开授权窗口，无需跳转设置。订阅要求及连接状态说明收进设置页的 i 浮层。
+设置页的音源与账户列表为各平台提供登录入口：网易云与 QQ 复用头像菜单的原生登录窗口和 Cookie 交换流程，取消不改账号状态，失败显示提示。Apple Music 的登录、退出与取消授权在设置音源行和右上角头像菜单共用连接状态；头像菜单直接打开授权窗口，无需跳转设置。订阅要求及连接状态说明收进设置页的 i 浮层。平台专属设置（Apple Music 登录地区、哔哩哔哩专辑封面）收进该平台行的齿轮浮层（`ProviderSettingsButton`），没有专属设置的平台留同宽占位，开关与账号按钮跨行对齐。
 
 「关于应用」保留版本信息、检查更新及安装入口；更新历史通过「更新日志」按钮进入按需加载的 `ReleaseHistoryPage`（`release-history` 视图），返回时恢复设置的关于应用区域。页面复用 `Update/ReleaseHistory` 展示离线更新历史，`lib/release-history.ts` 通过 Vite raw glob 打包 `docs/release-notes-*.md`，按版本倒序过滤当前及更早版本。摘要解析为类别与描述，并兼容旧条目的可选标题，按新增/优化/修复/说明分组，版本标题显示各类别数量，空类别不展示。当前版本默认展开，历史版本使用原生 `details/summary` 支持鼠标展开；只读取更新日志（兼容旧「主要变化」标题）与兼容说明，不展示开发验收记录。尚未取得更新检查结果时，版本号使用 `package.json` 的应用版本。
 
@@ -187,7 +190,7 @@ Windows 的关闭确认使用紧凑的主题 `<dialog>`：单选缩回托盘或�
 - 全屏 WebGL(LiquidEther / Visualizer Scene)同屏只跑一个。
 - 异步加载要用会话计数 ref 丢弃过期响应(参考 `ProviderRecommendationSection.sessionRef`)。
 - `Track.duration` 单位是毫秒(见根 CLAUDE.md 关键约定)。
-- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`)，本地音乐是 `MusicSource` 的第四种值；新增分支不能把 `local` 落进网易兜底。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。
+- 在线平台只接受 `ProviderId`(`netease`/`qq`/`apple`/`kugou`/`bilibili`/`qishui`)，本地音乐是 `MusicSource` 另加的一种值；新增分支不能把 `local` 落进网易兜底。`bilibili` 是默认关闭的无账号音源，在“音源与账户”里与其他平台同列启用；开启后，聚合搜索可按哔哩哔哩筛选音乐区视频并点播原视频音频。跨源兜底时固定排在最后，内容平台切换、我的库和歌词来源不包含哔哩哔哩。顺序里有兜底平台时解析器把试听片段推到最后，先找完整音频；B 站音频不写播放缓存。Apple Music 受保护音频不进入普通跨源直链或离线缓存，歌词匹配是独立流程。
 
 应用歌单由 `app-playlists` store 独立管理。详情经 `app-playlist` 路由打开，保留我的库原分类与滚动位置。播放时按当前平台参与状态、本地文件存在性和完整离线状态快照筛选并复制曲目；编辑、删除不改当前队列。新增与重命名复用主题原生 `<dialog>`，对话框中暂停应用快捷键并避让祖先多选捕获，取消或卸载后迟到集合解析不得保存。
 

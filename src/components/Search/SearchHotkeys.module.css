@@ -1,16 +1,15 @@
 .section { display: flex; flex-direction: column; min-height: 0; position: relative; padding: 16px 12px 12px; }
-.section:not(:first-child)::before { content: ''; position: absolute; top: 0; left: 16px; right: 16px; height: 1px; background: color-mix(in srgb, var(--sm-border) 65%, transparent); }
-.heading { flex-shrink: 0; display: flex; align-items: center; gap: 8px; margin: 0 4px 12px; font-size: 12px; font-weight: 600; line-height: 1.5; color: var(--sm-text-primary); }
-.heading svg { flex-shrink: 0; color: var(--sm-text-secondary); }
-.hint { margin: 0; padding: 6px 4px; font-size: 12px; color: var(--sm-text-secondary); }
-.keywords { min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2px 8px; }
+.heading { flex-shrink: 0; display: flex; align-items: center; gap: 8px; margin: 0 0 var(--hotkey-heading-gap, 12px); font-size: 12px; font-weight: 600; line-height: 1.5; color: var(--sm-text-primary); }
+.sourceIcon { display: contents; }
+.hint { margin: 0; padding: 6px 4px; font-size: 12px; color: var(--search-secondary, var(--sm-text-secondary)); }
+.keywords { display: grid; grid-template-columns: repeat(var(--hotkey-columns, 2), minmax(0, 1fr)); gap: 2px 8px; }
 .keyword {
   position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
-  padding: 10px 8px;
+  padding: var(--hotkey-row-padding, 10px) 8px;
   border: none;
   border-radius: 10px;
   background: transparent;
@@ -24,6 +23,7 @@
 }
 .arrow { flex-shrink: 0; margin-left: auto; color: var(--sm-text-secondary); opacity: 0; transition: opacity 0.2s var(--sm-ease-out); }
 .keyword:hover, .keyword:focus-visible { background: var(--sm-fill-hover); }
+.keyword:active { background: var(--sm-fill-active); }
 .keyword:hover .arrow, .keyword:focus-visible .arrow { opacity: 1; }
 .keyword:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: -2px; }
 .rank { display: grid; place-items: center; width: 22px; height: 22px; flex: 0 0 22px; border-radius: 6px; font-size: 10px; font-variant-numeric: tabular-nums; color: var(--sm-text-secondary); }

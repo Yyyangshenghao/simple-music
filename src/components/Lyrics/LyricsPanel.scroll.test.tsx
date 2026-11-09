@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
 vi.mock('react', async (importOriginal) => ({
   ...await importOriginal<typeof import('react')>(),
   useRef: (initial: unknown) => h.refs[h.refCursor++] ??= { current: initial },
+  useMemo: (compute: () => unknown) => compute(),
   useState: (initial: unknown) => {
     const index = h.stateCursor++
     if (index >= h.states.length) h.states[index] = initial
@@ -52,6 +53,10 @@ vi.mock('../../hooks/useMotion', () => ({
   useMotion: (flag: string) => flag === 'lyricsLineMotion' ? !h.reducedMotion : true,
 }))
 vi.mock('../Player/PlayerBar', () => ({ PlayerBar: () => null }))
+vi.mock('../../hooks/useTrackCover', () => ({ useTrackCover: (track?: { cover?: string } | null) => track?.cover }))
+vi.mock('../../hooks/useBilibiliTrackDisplay', async () => ({
+  useBilibiliTrackDisplay: (await import('../../lib/bilibili-track-display')).bilibiliTrackDisplay,
+}))
 vi.mock('../../stores/lyrics', () => ({ useLyricsStore: Object.assign(
   (selector: (state: typeof h.lyrics) => unknown) => selector(h.lyrics), { getState: () => h.lyrics }
 ) }))

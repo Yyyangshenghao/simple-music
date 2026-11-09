@@ -1,5 +1,5 @@
 import { useOfflineCacheStore, type OfflineSaveJob } from '../stores/offline-cache'
-import { offlineTrackKey } from './offline-cache'
+import { isCacheableSource, offlineTrackKey } from './offline-cache'
 import type { Track } from '../types/domain'
 
 export const DOWNLOAD_QUEUE_STORAGE_KEY = 'simplemusic-download-queue'
@@ -29,7 +29,7 @@ function restoreJobs(): OfflineSaveJob[] | null {
     const found = new Set<string>()
     return data.jobs.flatMap((job: { track?: Track; directory?: string } | null) => {
       const track = job?.track
-      if (!track || (track.source !== 'netease' && track.source !== 'qq') || track.provider !== track.source
+      if (!track || !isCacheableSource(track.source) || track.provider !== track.source
         || (typeof track.id !== 'string' && typeof track.id !== 'number') || !String(track.id)
         || typeof track.type !== 'string' || typeof track.name !== 'string' || typeof track.artist !== 'string'
         || !Array.isArray(track.artists) || typeof job?.directory !== 'string' || !job.directory.trim()) return []

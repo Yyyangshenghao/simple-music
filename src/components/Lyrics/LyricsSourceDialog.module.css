@@ -12,11 +12,39 @@
 .heading { min-width: 0; }
 .heading h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .heading p { margin: 5px 0 0; color: var(--sm-text-secondary); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.heading p, .preview { user-select: text; }
+.heading p { cursor: text; }
+.heading .originalTitle { color: var(--sm-text-muted); font-size: 11px; }
 .close { display: grid; flex-shrink: 0; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: var(--sm-radius-pill); background: transparent; color: var(--sm-text-secondary); transition: background 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out); }
 .close:hover { background: var(--sm-fill-hover); color: var(--sm-text-primary); }
 .close:active { background: var(--sm-fill-active); }
 .notice { margin: 0 26px 12px; color: var(--sm-text-secondary); font-size: 12px; line-height: 1.6; }
-.body { display: grid; grid-template-columns: minmax(200px, 0.82fr) minmax(0, 1fr); gap: 10px; min-height: 0; padding: 0 14px; }
+.searchPanel { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; flex-shrink: 0; padding: 0 26px 12px; }
+.searchPanel > .settingsLink { font-size: 12px !important; text-decoration: underline; text-underline-offset: 3px; }
+.searchForm { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; flex-basis: 100%; }
+.searchForm label { flex: 1 1 105px; min-width: 0; display: grid; gap: 4px; color: var(--sm-text-secondary); font-size: 11px; }
+.searchForm input { box-sizing: border-box; width: 100%; height: 32px; padding: 0 9px; border: 1px solid var(--sm-border); border-radius: 8px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font: inherit; font-size: 13px; }
+.searchForm input:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 1px; }
+.searchButton { min-height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--sm-fill-subtle); color: var(--sm-text-primary); font-size: 12px !important; }
+.searchButton:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.searchButton:active:not(:disabled) { background: var(--sm-fill-active); }
+.searchForm > .settingsLink { min-height: 32px; }
+.matchLabel { margin: 8px 0 0; font-size: 12px; overflow-wrap: anywhere; }
+.body { display: grid; grid-template-columns: minmax(200px, 0.82fr) minmax(0, 1fr); gap: 10px; min-height: 0; padding: 0 14px; overflow: auto; overscroll-behavior: contain; }
+.songCandidates { grid-column: 1 / -1; padding: 0 12px 8px; }
+.songCandidatesHeading { margin-bottom: 8px; }
+.songCandidatesHeading h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.songCandidatesHeading p, .songCandidateError p { margin: 0; color: var(--sm-text-secondary); font-size: 11px; line-height: 1.5; }
+.songCandidate { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 0; }
+.songCandidateCover { display: block; flex-shrink: 0; width: 38px; height: 38px; overflow: hidden; border-radius: 6px; background: var(--sm-fill-subtle); }
+.songCandidateCover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.songCandidateInfo { display: grid; flex: 1; gap: 3px; min-width: 0; }
+.songCandidateInfo strong, .songCandidateInfo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.songCandidateInfo strong { font-size: 13px; font-weight: 500; }
+.songCandidateInfo > span { color: var(--sm-text-secondary); font-size: 11px; }
+.songCandidateScore { flex-shrink: 0; color: var(--sm-text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.songCandidate > button { flex-shrink: 0; }
+.songCandidateError { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 6px 0; }
 .sources { display: flex; flex-direction: column; gap: 2px; padding: 2px 0; max-height: min(360px, calc(100vh - 230px)); overflow: auto; overscroll-behavior: contain; }
 .sourceItem { position: relative; display: flex; flex-direction: column; }
 /* 未找到的来源在行右侧放重新查找图标；行本身留出右侧空间，避免与标签重叠。 */
@@ -75,4 +103,4 @@
 .dialog .apply:disabled { opacity: 1; background: var(--sm-fill-subtle); color: var(--sm-text-muted); font-weight: 500; }
 .error { max-width: 230px; margin: 0; color: var(--sm-text-primary); font-size: 12px; line-height: 1.5; }
 @media (max-height: 600px) { .header { padding-top: 17px; padding-bottom: 10px; } .footer { padding-top: 12px; padding-bottom: 13px; } .previewLines { margin-top: 12px; margin-bottom: 12px; } }
-@media (max-width: 580px) { .body { grid-template-columns: minmax(160px, 0.9fr) minmax(0, 1fr); padding: 0 10px; } .header, .footer { padding-left: 16px; padding-right: 16px; } .preview { padding: 14px 12px; } .source { padding: 10px 8px; } }
+@media (max-width: 580px) { .body { grid-template-columns: minmax(160px, 0.9fr) minmax(0, 1fr); padding: 0 10px; } .header, .footer, .searchPanel { padding-left: 16px; padding-right: 16px; } .preview { padding: 14px 12px; } .source { padding: 10px 8px; } }

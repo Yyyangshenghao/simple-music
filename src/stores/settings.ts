@@ -1,3 +1,7 @@
+import { DEFAULT_TOP_MENU, normalizeTopMenu, type TopMenuId, type TopMenuItem } from '../lib/top-menu'
+import { normalizeExploreLayout, normalizeExploreLayouts, type ExploreLayouts, type ExploreModuleSetting } from '../lib/explore-modules'
+import { normalizeQishuiPinnedModes } from '../lib/qishui-mode-pins'
+import type { ProviderId } from '../providers/types'
 import { create } from 'zustand'
 import { useVisualStore } from './visual'
 import { defaultShortcuts, normalizeAccelerator, normalizeBindings, type ShortcutScope } from '../lib/shortcuts'
@@ -117,7 +121,7 @@ export const PERFORMANCE_PRESETS: Record<PerformancePreset, Omit<PerformanceFlag
 }
 
 export interface LyricsGuestSources { netease: boolean; qq: boolean }
-export interface LyricsPlatformSources extends LyricsGuestSources { apple: boolean }
+export interface LyricsPlatformSources extends LyricsGuestSources { apple: boolean; qishui: boolean }
 
 interface PersistedSettings {
   hotkeys: HotkeyBinding[]
@@ -128,6 +132,12 @@ interface PersistedSettings {
   shelfMergeCollections: boolean
   /** 取消 QQ / 网易云红心前弹窗确认；确认框里勾选「不再提示」后关闭，可在设置里重新打开。 */
   unlikeConfirmation: boolean
+  /** 各音源探索模块的独立开关与展示顺序。 */
+  exploreLayouts: ExploreLayouts
+  /** 汽水听歌模式的常用区，在探索页直接拖动调整。 */
+  qishuiPinnedModes: string[]
+  /** 哔哩哔哩曲目用匹配到的同曲专辑封面代替视频封面；未匹配到时仍显示视频封面。 */
+  bilibiliAlbumCover: boolean
   liveBackgroundKeep: boolean
   lyricsPanelMode: LyricsPanelMode
   lyrics3dEffect: Lyrics3dEffect
@@ -155,7 +165,7 @@ interface PersistedSettings {
   lyricsKugouFallback: boolean
   /** 网易云、QQ 作为独立歌词来源：未登录或已停用该平台时，以游客身份（不带账号 Cookie）查询歌词，搜索只发送歌名与歌手。 */
   lyricsGuestSources: LyricsGuestSources
-  /** 网易云、QQ 是否参与歌词查询；关闭后无论是否登录都不向该平台查歌词。 */
+  /** 网易云、QQ、Apple Music、汽水是否参与歌词查询；关闭后无论是否登录都不向该平台查歌词。 */
   lyricsPlatformSources: LyricsPlatformSources
   /** 普通歌词页的播放操作：stage=封面下方的舞台控件，dock=沿用底部悬浮播放栏。 */
   lyricsPlayerStyle: 'stage' | 'dock'
@@ -164,6 +174,7 @@ interface PersistedSettings {
   accentMode: AccentMode
   accentCustom: string
   contentLayout: 'framed' | 'full'
+  topMenu: TopMenuItem[]
   contentGutter: number
   audioQuality: AudioQuality
   /** AI K 歌使用的分离模型 */
@@ -222,6 +233,9 @@ interface SettingsStore extends PersistedSettings {
   setShelfShowPodcasts(v: boolean): void
   setShelfMergeCollections(v: boolean): void
   setUnlikeConfirmation(v: boolean): void
+  setExploreLayout(source: ProviderId, layout: ExploreModuleSetting[]): void
+  setQishuiPinnedModes(modes: string[]): void
+  setBilibiliAlbumCover(v: boolean): void
   setLiveBackgroundKeep(v: boolean): void
   setLyricsPanelMode(mode: LyricsPanelMode): void
   setLyrics3dEffect(effect: Lyrics3dEffect): void
@@ -245,6 +259,9 @@ interface SettingsStore extends PersistedSettings {
   setAccent(mode: AccentMode, custom?: string): void
   setContentLayout(layout: 'framed' | 'full'): void
   setContentGutter(value: number): void
+  setTopMenuItemEnabled(id: TopMenuId, enabled: boolean): void
+  moveTopMenuItem(id: TopMenuId, to: number): void
+  resetTopMenu(): void
   setAudioQuality(q: AudioQuality): void
   setKaraokeModel(model: KaraokeModelId): void
   setKaraokeVocalMix(lead: number, backing: number): void
@@ -280,6 +297,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   shelfShowPodcasts: true,
   shelfMergeCollections: false,
   unlikeConfirmation: true,
+  exploreLayouts: normalizeExploreLayouts(null),
+  qishuiPinnedModes: normalizeQishuiPinnedModes(null),
+  bilibiliAlbumCover: true,
   liveBackgroundKeep: false,
   lyricsPanelMode: 'lyrics',
   lyrics3dEffect: 'cover-cloud',
@@ -295,12 +315,13 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   lyricsAmllFallback: true,
   lyricsKugouFallback: true,
   lyricsGuestSources: { netease: true, qq: true },
-  lyricsPlatformSources: { netease: true, qq: true, apple: true },
+  lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true },
   lyricsPlayerStyle: 'stage',
   themeMode: 'auto',
   accentMode: 'mono',
   accentCustom: '#6366f1',
   contentLayout: 'framed',
+  topMenu: DEFAULT_TOP_MENU,
   contentGutter: CONTENT_GUTTER_DEFAULT,
   audioQuality: 'max',
   karaokeModel: DEFAULT_KARAOKE_MODEL,
@@ -360,6 +381,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setUnlikeConfirmation(v) {
     set({ unlikeConfirmation: v })
+    get().saveToLocal()
+  },
+  setExploreLayout(source, layout) {
+    set({ exploreLayouts: { ...get().exploreLayouts, [source]: normalizeExploreLayout(source, layout) } })
+    get().saveToLocal()
+  },
+  setQishuiPinnedModes(modes) {
+    set({ qishuiPinnedModes: normalizeQishuiPinnedModes(modes) })
+    get().saveToLocal()
+  },
+  setBilibiliAlbumCover(v) {
+    set({ bilibiliAlbumCover: v })
     get().saveToLocal()
   },
   setLiveBackgroundKeep(v) {
@@ -441,7 +474,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     get().saveToLocal()
   },
   setLyricsPlatformSource(source, enabled) {
-    if ((source !== 'netease' && source !== 'qq' && source !== 'apple') || typeof enabled !== 'boolean') return
+    if ((source !== 'netease' && source !== 'qq' && source !== 'apple' && source !== 'qishui') || typeof enabled !== 'boolean') return
     if (get().lyricsPlatformSources[source] === enabled) return
     set({ lyricsPlatformSources: { ...get().lyricsPlatformSources, [source]: enabled } })
     get().saveToLocal()
@@ -472,6 +505,25 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
   setContentLayout(contentLayout) {
     set({ contentLayout })
+    get().saveToLocal()
+  },
+  setTopMenuItemEnabled(id, enabled) {
+    const { topMenu, saveToLocal } = get()
+    if (typeof enabled !== 'boolean' || !topMenu.some(item => item.id === id && item.enabled !== enabled)) return
+    set({ topMenu: topMenu.map(item => item.id === id ? { ...item, enabled } : item) })
+    saveToLocal()
+  },
+  moveTopMenuItem(id, to) {
+    const { topMenu, saveToLocal } = get()
+    const from = topMenu.findIndex(item => item.id === id)
+    if (from < 0 || from === to || !Number.isInteger(to) || to < 0 || to >= topMenu.length) return
+    const next = [...topMenu]
+    next.splice(to, 0, ...next.splice(from, 1))
+    set({ topMenu: next })
+    saveToLocal()
+  },
+  resetTopMenu() {
+    set({ topMenu: DEFAULT_TOP_MENU })
     get().saveToLocal()
   },
   setKaraokeModel(model) {
@@ -540,8 +592,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   saveToLocal() {
     if (typeof localStorage === 'undefined') return
-    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
-    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
+    const { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, qishuiPinnedModes, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance } = get()
+    const data: PersistedSettings = { hotkeys, localHotkeys, globalHotkeysEnabled, mediaKeysEnabled, shelfShowPodcasts, shelfMergeCollections, unlikeConfirmation, bilibiliAlbumCover, exploreLayouts, qishuiPinnedModes, liveBackgroundKeep, lyricsPanelMode, lyrics3dEffect, lyrics3dStyle, lyricsOverlayBlur, lyricsStage3d, lyrics3d, lyricsFontScale, lyricsLayout, lyricsShowTranslation, lyricsShowRoma, lyricsInstrumentalHint, lyricsAmllFallback, lyricsKugouFallback, lyricsGuestSources, lyricsPlatformSources, lyricsPlayerStyle, themeMode, accentMode, accentCustom, contentLayout, topMenu, contentGutter, audioQuality, karaokeModel, karaokeLead, karaokeBacking, playMode, fontFamily, fontFamilyCjk, lyricsFontFamily, lyricsFontFamilyCjk, lyrics3dFontFamily, lyrics3dFontFamilyCjk, performance, miniPlayerEnabled, miniPlayerWidth, miniPlayerAppearance }
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(data))
   },
 
@@ -580,6 +632,9 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         shelfShowPodcasts: data.shelfShowPodcasts ?? true,
         shelfMergeCollections: data.shelfMergeCollections ?? false,
         unlikeConfirmation: data.unlikeConfirmation ?? true,
+        exploreLayouts: normalizeExploreLayouts(data.exploreLayouts),
+        qishuiPinnedModes: normalizeQishuiPinnedModes(data.qishuiPinnedModes),
+        bilibiliAlbumCover: data.bilibiliAlbumCover ?? true,
         liveBackgroundKeep: data.liveBackgroundKeep ?? false,
         // 旧版的跃字 / 3D 是独立模式，统一迁为「动态」，具体样式由 lyric-styles 读回。
         lyricsPanelMode: data.lyricsPanelMode === 'dynamic' || (data.lyricsPanelMode as string) === '3d' || (data.lyricsPanelMode as string) === 'pop' ? 'dynamic' : 'lyrics',
@@ -614,12 +669,14 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           netease: typeof data.lyricsPlatformSources?.netease === 'boolean' ? data.lyricsPlatformSources.netease : true,
           qq: typeof data.lyricsPlatformSources?.qq === 'boolean' ? data.lyricsPlatformSources.qq : true,
           apple: typeof data.lyricsPlatformSources?.apple === 'boolean' ? data.lyricsPlatformSources.apple : true,
+          qishui: typeof data.lyricsPlatformSources?.qishui === 'boolean' ? data.lyricsPlatformSources.qishui : true,
         },
         lyricsPlayerStyle: data.lyricsPlayerStyle === 'dock' ? 'dock' : 'stage',
         themeMode: data.themeMode ?? 'auto',
         accentMode: ACCENT_MODES.includes(data.accentMode as AccentMode) ? data.accentMode as AccentMode : 'mono',
         accentCustom: isHexColor(data.accentCustom) ? data.accentCustom : '#6366f1',
         contentLayout: data.contentLayout === 'full' ? 'full' : 'framed',
+        topMenu: normalizeTopMenu(data.topMenu),
         contentGutter: normalizeContentGutter(data.contentGutter),
         audioQuality: data.audioQuality ?? 'max',
         karaokeModel: isKaraokeModelId(data.karaokeModel) ? data.karaokeModel : DEFAULT_KARAOKE_MODEL,

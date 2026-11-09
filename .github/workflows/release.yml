@@ -1,6 +1,6 @@
 name: Release
 
-# 手动触发发版：先校验、双平台测试与正式打包，全部成功后最后一步才创建 tag 与 Release。
+# 手动触发发版：先校验、三平台测试与正式打包，全部成功后最后一步才创建 tag 与 Release。
 # 任何一步失败都不会留下 tag，修复后用同一个版本号重跑即可，版本号不会被失败的构建占掉。
 #   正式版：gh workflow run release.yml --ref master -f channel=stable
 #   预发版：gh workflow run release.yml --ref dev/X.Y.Z -f channel=beta（beta 号自动递增）

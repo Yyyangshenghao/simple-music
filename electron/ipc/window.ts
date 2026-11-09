@@ -12,11 +12,12 @@ import {
 } from '../modules/window-manager'
 
 export function registerWindowIpc(): void {
+  // 关闭方式在 Windows 与 Linux 都生效（两者都是无边框自绘窗口 + 系统托盘），macOS 由系统习惯处理。
   const requireMainFrame = (event: IpcMainInvokeEvent): void => {
     const win = getMainWindow()
-    if (process.platform !== 'win32' || !win || win.isDestroyed()
+    if (process.platform === 'darwin' || !win || win.isDestroyed()
       || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame) {
-      throw new Error('Window close preferences are only available to the Windows main window')
+      throw new Error('Window close preferences are only available to the Windows and Linux main window')
     }
   }
   ipcMain.handle('window:get-close-state', (event) => {

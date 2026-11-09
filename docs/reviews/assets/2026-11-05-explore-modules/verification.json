@@ -1,0 +1,52 @@
+{
+  "environment": "隔离的 macOS Electron dev；模拟账号与平台能力返回，不播放音乐、不操作真实账号",
+  "bounds": [
+    {
+      "width": 793,
+      "height": 559.5,
+      "theme": "dark",
+      "x": 401,
+      "y": 64,
+      "viewportWidth": 1536,
+      "viewportHeight": 864
+    },
+    {
+      "width": 793,
+      "height": 559.5,
+      "theme": "light",
+      "x": 401,
+      "y": 64,
+      "viewportWidth": 1536,
+      "viewportHeight": 864
+    },
+    {
+      "width": 733.3984375,
+      "height": 344,
+      "theme": "dark",
+      "x": 28.796875,
+      "y": 64,
+      "viewportWidth": 960,
+      "viewportHeight": 540
+    },
+    {
+      "width": 733.3984375,
+      "height": 344,
+      "theme": "light",
+      "x": 28.796875,
+      "y": 64,
+      "viewportWidth": 960,
+      "viewportHeight": 540
+    }
+  ],
+  "checks": [
+    "深浅主题1536×864与960×540面板边界",
+    "最小高度首项拖至末尾，边缘自动滚动",
+    "开关不改变排序",
+    "Esc返回齿轮焦点",
+    "全关恢复提示且不请求歌曲精选",
+    "恢复默认",
+    "面板打开时停用音源立即关闭并禁用入口",
+    "减少动态下开合可用"
+  ],
+  "errors": []
+}

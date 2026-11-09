@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   get: vi.fn(),
+  post: vi.fn(),
   refresh: vi.fn(async (_signal?: AbortSignal) => {}),
   settings: {
     setNeteaseLoggedIn: vi.fn(), setNeteaseProfile: vi.fn(),
@@ -15,11 +16,12 @@ const h = vi.hoisted(() => ({
     setAccountState: vi.fn()
   }
 }))
-vi.mock('../lib/api', () => ({ api: { get: h.get } }))
+vi.mock('../lib/api', () => ({ api: { get: h.get, post: h.post } }))
 vi.mock('../stores/settings', () => ({ useSettingsStore: { getState: () => h.settings } }))
 vi.mock('../stores/providers', () => ({ useProviderStore: { getState: () => h.providers } }))
 vi.mock('../stores/apple-music-connection', () => ({ useAppleMusicConnection: { getState: () => ({ refresh: h.refresh }) } }))
 import { initLoginStatusSync } from './login-status-sync'
+import { commitQishuiLogin } from './provider-login'
 import { useGameModeStore } from '../stores/game-mode'
 import { advanceProviderAccountSession } from './provider-account-session'
 
@@ -38,7 +40,7 @@ beforeEach(() => {
   h.get.mockImplementation((path: string) => new Promise((resolve) => replies.set(path, resolve)))
   cleanup = initLoginStatusSync()
 })
-afterEach(() => { cleanup?.(); vi.useRealTimers() })
+afterEach(() => { cleanup?.(); vi.useRealTimers(); vi.unstubAllGlobals() })
 
 it.each(['netease', 'qq'] as const)('%s 登录成功后丢弃迟到的启动未登录状态', async (source) => {
   h.providers.byId[source] = { auth: 'authenticated', enabled: true, profile: { avatar: 'new-avatar', nickname: 'new-account' } }
@@ -102,7 +104,9 @@ it.each(['netease', 'qq'] as const)('%s 账号退出后状态回到初值，仍�
 it('无界面轮询且重复启动不重查，进入游戏取消在途请求，退出后仅保留新一轮', async () => {
   await flush()
   expect(initLoginStatusSync()).toBe(cleanup)
-  expect(h.get).toHaveBeenCalledTimes(2)
+  expect(h.get.mock.calls.map(([path]) => path)).toEqual([
+    '/api/login/status', '/api/qq/login/status', '/api/kugou/login/status', '/api/qishui/login/status'
+  ])
   expect(h.refresh).toHaveBeenCalledOnce()
   let finish!: () => void
   h.refresh.mockImplementationOnce(() => new Promise<void>(done => { finish = done }))
@@ -120,4 +124,31 @@ it('无界面轮询且重复启动不重查，进入游戏取消在途请求，�
   expect(h.refresh).toHaveBeenCalledTimes(4)
   cleanup?.()
   expect(vi.getTimerCount()).toBe(0)
+})
+
+it.each(['kugou', 'qishui'] as const)('%s 按 server 状态同步可选账号，账号切换后丢弃迟到结果', async source => {
+  replies.get(`/api/${source}/login/status`)?.({ loggedIn: true, nickname: 'kg', avatar: 'a' })
+  await flush()
+  expect(h.providers.setAccountState).toHaveBeenCalledWith(source, 'authenticated', { avatar: 'a', nickname: 'kg' })
+  cleanup?.()
+  vi.clearAllMocks()
+  cleanup = initLoginStatusSync()
+  advanceProviderAccountSession(source)
+  replies.get(`/api/${source}/login/status`)?.({ loggedIn: false })
+  await flush()
+  expect(h.providers.setAccountState).not.toHaveBeenCalledWith(source, expect.anything(), undefined)
+})
+
+it('汽水提交扫码时丢弃在途的启动账号恢复', async () => {
+  vi.stubGlobal('window', {})
+  let complete!: (result: { loggedIn: boolean; nickname: string }) => void
+  h.post.mockImplementationOnce(() => new Promise(resolve => { complete = resolve }))
+  const commit = commitQishuiLogin('ticket')
+  replies.get('/api/qishui/login/status')?.({ loggedIn: true, nickname: '启动时的旧账号' })
+  await flush()
+  expect(h.providers.setAccountState).not.toHaveBeenCalled()
+  complete({ loggedIn: true, nickname: '扫码账号' })
+  await commit
+  expect(h.providers.setAccountState).toHaveBeenCalledTimes(1)
+  expect(h.providers.setAccountState).toHaveBeenCalledWith('qishui', 'authenticated', { avatar: '', nickname: '扫码账号' })
 })

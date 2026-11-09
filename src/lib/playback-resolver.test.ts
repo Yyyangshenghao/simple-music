@@ -64,6 +64,14 @@ describe('buildPlaybackSourceOrder', () => {
     expect(buildPlaybackSourceOrder(track('qq'), preferences, participating)).toEqual(['qq', 'netease'])
   })
 
+  it('点播哔哩哔哩时优先播放原视频音频，即使使用固定顺序且关闭自动换源', () => {
+    expect(buildPlaybackSourceOrder(track('bilibili'), {
+      playbackOrder: ['qq', 'netease', 'bilibili'],
+      preferOriginSource: false,
+      multiSourceFallback: false,
+    }, participating)).toEqual(['bilibili'])
+  })
+
   it('手动软优先在最前，其后是原源和全局顺序', () => {
     expect(buildPlaybackSourceOrder(track('netease'), {
       playbackOrder: ['netease', 'qq'],
@@ -224,5 +232,52 @@ describe('PlaybackResolver', () => {
     await expect(resolver.next()).resolves.toBeNull()
     expect(resolver.failureMessage).toBe('需要网易云会员')
     expect(resolver.attempts[0]).toEqual(expect.objectContaining({ result: 'restricted' }))
+  })
+
+  it('试听片段让位给后续平台的完整版本，后续都不可用时才播试听', async () => {
+    const preferences = { playbackOrder: ['qishui', 'netease'] as ProviderId[], preferOriginSource: true, multiSourceFallback: true }
+    const trial = { ...candidate('qishui', 'https://trial'), trial: true }
+    const full = dependencies({
+      active: ['qishui', 'netease'],
+      resolve: { qishui: async () => [trial], netease: async () => [candidate('netease', 'https://full')] },
+      matches: { netease: track('netease') },
+    })
+    await expect(new PlaybackResolver(track('qishui'), 'exhigh', preferences, full).next()).resolves.toMatchObject({ url: 'https://full' })
+
+    const none = dependencies({
+      active: ['qishui', 'netease'],
+      resolve: { qishui: async () => [trial], netease: async () => [] },
+      matches: { netease: null },
+    })
+    await expect(new PlaybackResolver(track('qishui'), 'exhigh', preferences, none).next()).resolves.toMatchObject({ url: 'https://trial', trial: true })
+  })
+})
+
+describe('哔哩哔哩兜底', () => {
+  const preferences = { playbackOrder: ['netease', 'qq', 'bilibili'] as ProviderId[], preferOriginSource: true, multiSourceFallback: true }
+
+  it('有兜底平台时试听片段放到最后，先播 B 站完整音频', async () => {
+    const trial = { ...candidate('netease', 'https://netease/trial'), trial: true }
+    const deps = dependencies({
+      active: ['netease', 'bilibili'],
+      resolve: {
+        netease: vi.fn(async () => [trial]),
+        bilibili: vi.fn(async () => [candidate('bilibili', 'https://upos.bilivideo.com/full.m4s')]),
+      },
+      matches: { bilibili: track('bilibili', 'BV1BZbSzZEGT') },
+    })
+    const resolver = new PlaybackResolver(track('netease'), 'exhigh', preferences, deps)
+    expect(resolver.defersTrial).toBe(true)
+    expect((await resolver.next())?.url).toBe('https://upos.bilivideo.com/full.m4s')
+    // B 站媒体也失败时才回到试听片段。
+    expect((await resolver.next('decode'))?.url).toBe('https://netease/trial')
+  })
+
+  it('没有兜底平台时保持原行为，试听照常起播', async () => {
+    const trial = { ...candidate('netease', 'https://netease/trial'), trial: true }
+    const deps = dependencies({ active: ['netease', 'qq'], resolve: { netease: vi.fn(async () => [trial]) } })
+    const resolver = new PlaybackResolver(track('netease'), 'exhigh', { ...preferences, playbackOrder: ['netease', 'qq'] }, deps)
+    expect(resolver.defersTrial).toBe(false)
+    expect((await resolver.next())?.url).toBe('https://netease/trial')
   })
 })

@@ -20,12 +20,12 @@ import {
 import { audioContentTypeForUrl, audioProxyHeadersFor } from '../lib/netease-client'
 import { findDownloads, waitForDownloadReconcile } from '../lib/download-library'
 
-type OnlineSource = 'netease' | 'qq'
+type OnlineSource = 'netease' | 'qq' | 'kugou'
 
 const saveProgress = new Map<string, { receivedBytes: number; totalBytes: number }>()
 
 function isOnlineSource(value: unknown): value is OnlineSource {
-  return value === 'netease' || value === 'qq'
+  return value === 'netease' || value === 'qq' || value === 'kugou'
 }
 
 function originFrom(value: unknown): AudioCacheOriginInput | null {

@@ -131,3 +131,11 @@
 
 /* 关闭「图标小动画」时直接到位。 */
 :global([data-icon-motion-off]) :is(.backBtn, .label > span, .dock > .backBtn, .dock[data-hidden='true'] > .backBtn) { transition: none !important; animation: none !important; }
+
+.backBtn[data-icon-only] { grid-template-columns: 36px; }
+.backBtn[data-icon-only]:active { transform: none; background: var(--sm-fill-active); }
+.backBtn[data-icon-only] .icon svg { animation: none; }
+@media (prefers-reduced-motion: no-preference) {
+  :global(html:not([data-icon-motion-off])) .backBtn[data-icon-only] .icon svg { transition: transform 150ms var(--sm-ease-out); }
+  :global(html:not([data-icon-motion-off])) .backBtn[data-icon-only]:hover .icon svg { transform: translateX(-2px); }
+}

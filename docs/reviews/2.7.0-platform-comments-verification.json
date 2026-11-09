@@ -1,0 +1,59 @@
+{
+  "date": "2026-11-05",
+  "branch": "dev/2.7.0",
+  "typecheck": "passed",
+  "tests": {
+    "filesPassed": 424,
+    "testsPassed": 4031,
+    "testsSkipped": 2
+  },
+  "liveApi": {
+    "featured": {
+      "count": 5,
+      "playable": 5,
+      "partial": false
+    },
+    "netease": {
+      "hot": 15,
+      "latest": 20,
+      "total": 1969922,
+      "nextOffset": 20,
+      "secondLatest": 20,
+      "secondHot": 0,
+      "overlap": 0
+    },
+    "qq": {
+      "hot": 14,
+      "latest": 19,
+      "total": 230665,
+      "nextOffset": 20,
+      "secondLatest": 19,
+      "secondHot": 0,
+      "overlap": 0
+    }
+  },
+  "electronNavigation": {
+    "comments": 20,
+    "returnedScroll": 800
+  },
+  "rendererFixtures": {
+    "featuredPlayed": {
+      "sources": [
+        "netease",
+        "netease",
+        "netease",
+        "netease",
+        "netease"
+      ],
+      "count": 5,
+      "index": 0
+    },
+    "latestCount": 25,
+    "errorRecovered": true,
+    "pageErrors": []
+  },
+  "limits": [
+    "只读评论，未实现评论发布或点赞",
+    "Apple真实账号验证缺口沿用第一批记录"
+  ]
+}

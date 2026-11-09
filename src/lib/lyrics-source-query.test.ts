@@ -4,19 +4,21 @@ import { queryLyricsSource, candidateAvailability } from './lyrics-source-query'
 import { clearProviderRequestCache } from './provider-request-cache'
 import { advanceProviderAccountSession } from './provider-account-session'
 import { fetchLyrics } from './lyrics-fetch'
+import { clearBilibiliSongIdentityCache } from './bilibili-song-identity'
+import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { useLyricsSourceStore } from '../stores/lyrics-source'
 import { useProviderStore, isProviderParticipating } from '../stores/providers'
 import { useSettingsStore } from '../stores/settings'
 import type { Track } from '../types/domain'
 
-const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
+const h = vi.hoisted(() => ({ netease: vi.fn(), qq: vi.fn(), apple: vi.fn(), qishui: vi.fn(), native: vi.fn(), local: vi.fn(), identity: vi.fn() }))
 vi.mock('./api', () => ({ api: { get: vi.fn() } }))
 vi.mock('./apple-lyrics', () => ({ fetchNativeAppleLyrics: h.native }))
 vi.mock('./local-music-service', () => ({ localMusicService: {
   getLyrics: h.local,
   getLyricSource: async (track: unknown, signal?: AbortSignal) => ({ lines: (await h.local(track, signal)) ?? [], identity: h.identity(track) ?? null }),
 } }))
-vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple') => ({
+vi.mock('../providers/registry', () => ({ providerFor: (source: 'netease' | 'qq' | 'apple' | 'qishui') => ({
   catalog: { searchTracks: h[source], getTracksByIds: vi.fn() },
 }) }))
 
@@ -33,24 +35,137 @@ beforeEach(() => {
   useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
   vi.resetAllMocks()
   clearProviderRequestCache()
+  clearBilibiliSongIdentityCache()
+  useBilibiliCoverStore.setState({ entries: {} })
   useLyricsSourceStore.setState({ health: {}, probes: {} })
   vi.stubGlobal('localStorage', undefined)
   useSettingsStore.setState({ lyricsAmllFallback: true, lyricsKugouFallback: true })
   useProviderStore.setState({ byId: {
     netease: { enabled: true, auth: 'authenticated' },
     qq: { enabled: true, auth: 'authenticated' },
-    apple: { enabled: true, auth: 'authenticated' },
+    apple: { enabled: true, auth: 'authenticated' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
   } })
   h.netease.mockResolvedValue([song('netease')])
   h.qq.mockResolvedValue([song('qq')])
   h.apple.mockResolvedValue([song('apple', { id: 'a1' })])
+  h.qishui.mockResolvedValue([])
   h.native.mockResolvedValue(null)
   h.local.mockResolvedValue([{ time: 1, text: '本地歌词' }])
-  vi.mocked(api.get).mockResolvedValue({ lyric: '[00:01.00]甲乙' })
+  vi.mocked(api.get).mockImplementation(async (path, params) => {
+    if (path === '/api/search' || path === '/api/qq/search') return { songs: await h[path === '/api/search' ? 'netease' : 'qq'](String(params?.keywords)) } as never
+    return { lyric: '[00:01.00]甲乙' } as never
+  })
 })
 afterEach(() => vi.unstubAllGlobals())
 
 describe('来源锁定', () => {
+  it('手动歌词搜索使用输入的歌名歌手，即使查询原平台也不直接使用原曲 ID', async () => {
+    const track = song('netease', { id: 'old-id', name: '错误歌名', artist: '错误歌手' })
+    const search = { name: '晴天', artist: '周杰伦' }
+    const setItem = vi.fn()
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem })
+    const response = await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, { search })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    expect(setItem).not.toHaveBeenCalled()
+    expect(response).toMatchObject({ status: 'ready', match: { id: '1' } })
+    expect(track).toMatchObject({ id: 'old-id', name: '错误歌名', artist: '错误歌手' })
+  })
+
+  it('手动查询 B 站时使用输入身份，并继续校验时长', async () => {
+    const track = song('bilibili', { name: '难以识别的视频', videoTitle: '难以识别的视频', duration: 200_000 })
+    const options = { search: { name: '晴天', artist: '周杰伦' } }
+    expect(await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, options)).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/lyric')).toBe(false)
+  })
+
+  it('用户输入无版本标注的歌名时仍保留原录音的现场标记', async () => {
+    const track = song('qq', { name: '晴天（现场）' })
+    const search = { name: '晴天', artist: '周杰伦' }
+    expect(await queryLyricsSource(track, 'netease', ['netease'], undefined, undefined, { search })).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    expect(api.get).not.toHaveBeenCalled()
+  })
+
+  it('手动查询酷狗自己的歌曲也按输入关键词搜索', async () => {
+    const track = song('kugou', { id: 'original-hash' })
+    const options = { search: { name: '晴天', artist: '周杰伦' } }
+    vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
+    expect(await queryLyricsSource(track, 'kugou', [], undefined, undefined, options)).toMatchObject({ status: 'ready' })
+    expect(api.get).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000' }, expect.anything())
+  })
+
+  it.each([
+    ['【4K修复】周杰伦 - 晴天MV 2160P修复版', '周杰伦'],
+    ['【Hi-Res】《晴天》周杰伦', '周杰伦'],
+  ])('按 B 站视频标题 %s 提取歌名查词', async (name, artist) => {
+    const track = song('bilibili', { name, artist: '上传账号', id: 'BV1BZbSzZEGT' })
+    const result = await queryLyricsSource(track, 'netease', ['netease'])
+    expect(h.netease).toHaveBeenCalledWith(`晴天 ${artist}`)
+    expect(result).toMatchObject({ status: 'ready', match: { name: '晴天' } })
+    expect(track.name).toBe(name)
+  })
+
+  it('B 站简介明确标注歌名和演唱者时优先使用这组信息', async () => {
+    const track = song('bilibili', { name: '晴天现场之外的随手记录', bilibiliLyricHint: { name: '晴天', artists: ['周杰伦'] } })
+    // 保留原视频标题的版本校验，即使简介给了明确的歌名和歌手。
+    expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+    h.netease.mockClear()
+    expect(await queryLyricsSource({ ...track, name: '一个音乐视频' }, 'netease', ['netease'])).toMatchObject({ status: 'ready' })
+    expect(h.netease).toHaveBeenCalledWith('晴天 周杰伦')
+  })
+
+  it('简介和标题的明确歌名冲突时不自动套歌词', async () => {
+    const track = song('bilibili', { name: '周杰伦《夜曲》', bilibiliLyricHint: { name: '晴天', artists: ['周杰伦'] } })
+    expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'empty' })
+    expect(h.netease).not.toHaveBeenCalled()
+  })
+
+  it('两种 B 站标题读法都能查到酷狗歌词时不任取其一', async () => {
+    const track = song('bilibili', { name: '周杰伦 - 晴天' })
+    vi.mocked(api.get).mockImplementation(async (_path, params) => ({
+      candidates: [{ title: params?.title, artist: params?.artist, duration: 180_000, text: krc }],
+    }) as never)
+    expect(await queryLyricsSource(track, 'kugou', [])).toMatchObject({ status: 'mismatch' })
+    expect(vi.mocked(api.get).mock.calls.filter(([path]) => path === '/api/kugou/lyric')).toHaveLength(2)
+  })
+
+  it.each([182_900, 180_000])('比较 B 站横线两侧的读法（第一种候选时长 %i）', async (duration) => {
+    const track = song('bilibili', { name: '周杰伦 - 晴天' })
+    h.netease.mockImplementation(async (keyword: string) => {
+      if (keyword === '周杰伦 晴天') return [song('netease', { id: 'reversed', name: '周杰伦', artist: '晴天', duration })]
+      if (keyword === '晴天 周杰伦') return [song('netease', { id: 'correct' })]
+      return []
+    })
+    const result = await queryLyricsSource(track, 'netease', ['netease'])
+    expect(h.netease).toHaveBeenCalledTimes(duration === 180_000 ? 4 : 2)
+    expect(result).toMatchObject(duration === 180_000 ? { status: 'mismatch' } : { status: 'ready', match: { id: 'correct' } })
+  })
+
+  it('酷狗用 B 站视频中解析出的歌名和歌手查询', async () => {
+    const track = song('bilibili', { name: '上传时的显示标题', videoTitle: '晴天 - 周杰伦', artist: '上传账号' })
+    vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
+    expect(await queryLyricsSource(track, 'kugou', [])).toMatchObject({ status: 'ready', result: { origin: 'kugou' } })
+    expect(api.get).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000' }, expect.anything())
+  })
+
+  it.each(['【现场】周杰伦《晴天》', '周杰伦《晴天》女声完整版'])('提取 B 站歌名后仍拒绝给 %s 套用录音室歌词', async (name) => {
+    const track = song('bilibili', { name, artist: '上传账号' })
+    expect(await queryLyricsSource(track, 'netease', ['netease'])).toMatchObject({ status: 'mismatch' })
+    expect(h.netease).toHaveBeenCalledWith('晴天')
+    expect(vi.mocked(api.get).mock.calls.some(([path]) => path === '/api/lyric' || path === '/api/qq/lyric')).toBe(false)
+  })
+
+  it('网易和 QQ 未收录时，仍可用酷狗可靠 KRC 兜底', async () => {
+    h.netease.mockResolvedValue([])
+    h.qq.mockResolvedValue([])
+    const track = song('bilibili', { name: '周杰伦《晴天》', artist: '上传账号' })
+    vi.mocked(api.get).mockResolvedValue({ candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] })
+    expect(await queryLyricsSource(track, 'kugou', ['netease', 'qq'])).toMatchObject({ status: 'ready', result: { origin: 'kugou' } })
+    expect(api.get).toHaveBeenCalledWith('/api/kugou/lyric', expect.objectContaining({ title: '晴天', artist: '周杰伦' }), expect.anything())
+  })
+
   it('选 QQ 可取原生逐字，但绝不升级成 AMLL 或酷狗', async () => {
     vi.mocked(api.get).mockResolvedValue({ qrc })
     const result = await queryLyricsSource(song('netease'), 'qq', ['netease', 'qq'])
@@ -134,7 +249,7 @@ describe('参与限制和取消', () => {
 
     // 原平台在歌词设置中关闭时不再请求它补翻译。
     h.native.mockResolvedValue({ source: 'apple', main: [{ time: 1.2, text: 'Hello' }], aligned: [], roma: [], wordLines: [] })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true, qishui: true } })
     vi.mocked(api.get).mockClear()
     const plain = await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple'])
     expect(plain).toMatchObject({ status: 'ready', result: { aligned: [] } })
@@ -146,13 +261,13 @@ describe('参与限制和取消', () => {
     expect(await queryLyricsSource(song('netease'), 'apple', ['netease', 'apple']))
       .toMatchObject({ status: 'ready', result: { source: 'apple' }, match: { source: 'apple', id: 'a1' } })
     expect(h.native).toHaveBeenCalledWith(expect.objectContaining({ source: 'apple', id: 'a1' }), expect.anything(), true)
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: false, qishui: true } })
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
-    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' } } }))
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: true, auth: 'expired' }, kugou: { enabled: false, auth: 'authenticated' } } }))
     expect(candidateAvailability(song('netease'), 'apple', ['apple'])).toMatchObject({ status: 'login' })
     expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'login' })
-    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: false, auth: 'authenticated' } } }))
+    useProviderStore.setState(state => ({ byId: { ...state.byId, apple: { enabled: false, auth: 'authenticated' }, kugou: { enabled: false, auth: 'authenticated' } } }))
     expect(candidateAvailability(song('netease'), 'apple', ['apple'], true)).toMatchObject({ status: 'disabled', message: 'Apple Music 未启用' })
   })
 
@@ -356,7 +471,7 @@ describe('游客歌词来源', () => {
   beforeEach(() => {
     useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true } })
     useProviderStore.setState({ byId: {
-      netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: false, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' },
+      netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: false, auth: 'authenticated' }, apple: { enabled: true, auth: 'authenticated' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
   })
 
@@ -381,8 +496,47 @@ describe('游客歌词来源', () => {
   })
 
   it('设置中关闭平台后，即使已登录也显示已关闭', () => {
-    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: false, qq: true, apple: true, qishui: true } })
     expect(candidateAvailability(song('apple'), 'netease', ['netease'])).toMatchObject({ status: 'disabled', message: '已在设置中关闭' })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
   })
+})
+
+
+it('B 站系统游客歌词不受播放平台、游客或歌词平台开关影响', async () => {
+  useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false }, lyricsPlatformSources: { netease: false, qq: false, apple: false, qishui: false } })
+  useProviderStore.setState({ byId: { ...useProviderStore.getState().byId, netease: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' } } })
+  const track = song('bilibili', { name: '周杰伦《晴天》' })
+  expect(candidateAvailability(track, 'netease', [])).toEqual({ status: 'idle' })
+  expect(candidateAvailability(track, 'qq', [])).toEqual({ status: 'idle' })
+  expect(candidateAvailability(track, 'amll', [])).toEqual({ status: 'idle' })
+})
+
+
+it('B 站原生游客取词不会因无关 Apple 账号变化丢弃响应', async () => {
+  const track = song('bilibili', { name: '周杰伦《晴天》' })
+  let finish!: (value: unknown) => void
+  const original = vi.mocked(api.get).getMockImplementation()!
+  vi.mocked(api.get).mockImplementation((path, ...args) => path === '/api/lyric'
+    ? new Promise(resolve => { finish = resolve }) as never : original(path, ...args))
+  const pending = queryLyricsSource(track, 'netease', ['netease', 'qq', 'apple'])
+  await vi.waitFor(() => expect(finish).toBeDefined())
+  advanceProviderAccountSession('apple')
+  advanceProviderAccountSession('netease')
+  finish({ lyric: '[00:01.00]系统游客歌词' })
+  expect(await pending).toMatchObject({ status: 'ready', result: { main: [{ time: 1, text: '系统游客歌词' }] } })
+  expect(api.get).toHaveBeenCalledWith('/api/lyric', expect.objectContaining({ guest: '1' }), expect.anything())
+})
+
+
+it('账号来源熔断不拦截 B 站系统游客，也不由游客结果修改账号健康状态', async () => {
+  const health = { netease: { failures: 3, suspended: true, retryAt: Date.now() + 60_000 }, qq: { failures: 3, suspended: true, retryAt: Date.now() + 60_000 } }
+  useLyricsSourceStore.setState({ health })
+  const track = song('bilibili', { name: '周杰伦《晴天》' })
+  expect(candidateAvailability(song('qq'), 'netease', ['netease']).status).toBe('unavailable')
+  for (const origin of ['netease', 'qq'] as const) {
+    expect(candidateAvailability(track, origin, [])).toEqual({ status: 'idle' })
+    expect(await queryLyricsSource(track, origin, [])).toMatchObject({ status: 'ready' })
+  }
+  expect(useLyricsSourceStore.getState().health).toBe(health)
 })

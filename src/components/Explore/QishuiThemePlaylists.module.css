@@ -1,0 +1,29 @@
+.themes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.themes button {
+  border-radius: var(--sm-radius-pill);
+}
+
+.themes button[aria-pressed='true'] {
+  background: var(--sm-fill-hover);
+  color: var(--sm-text-primary);
+}
+
+.themes button[aria-pressed='true']:active {
+  background: var(--sm-fill-active);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 148px;
+  margin: 0;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+}

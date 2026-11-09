@@ -1,23 +1,28 @@
+import { ExploreModuleSettings } from '../components/Settings/ExploreModuleSettings'
+import { TopMenuSettings } from '../components/Settings/TopMenuSettings'
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { AnimatePresence, motion, Reorder, useDragControls } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useMotion } from '../hooks/useMotion'
 import { api } from '../lib/api'
-import { loginMusicProvider } from '../lib/provider-login'
 import { logoutMusicProvider } from '../lib/provider-logout'
 import { CONTENT_GUTTER_DEFAULT, CONTENT_GUTTER_MIN, CONTENT_GUTTER_MAX, CONTROL_MOTION_KEYS, PERFORMANCE_PRESETS, controlMotionFlags, useSettingsStore, type PerformancePreset } from '../stores/settings'
 import { DEFAULT_MINI_PLAYER_APPEARANCE, MINI_PLAYER_LYRICS_WIDTH } from '../lib/mini-player-config'
 import { useToastStore } from '../stores/toast'
-import { useUpdateStore } from '../stores/update'
+import { supportsInAppUpdate, useUpdateStore } from '../stores/update'
 import { springSnappy, tapScale } from '../lib/motion-presets'
 import { InfoButton } from '../components/ui/InfoButton'
 import { Switch } from '../components/ui/Switch'
 import { SettingSlider } from '../components/ui/SettingSlider'
 import { SourceBadge } from '../components/ui/SourceBadge'
+import { rankStrength, useListReorder } from '../components/ui/useListReorder'
+import list from '../components/ui/OrderList.module.css'
+import { LyricOriginIcon } from '../components/Lyrics/LyricOriginIcon'
 import { SourceName } from '../components/ui/SourceName'
 import { SystemFontPicker } from '../components/ui/SystemFontPicker'
-import { AppleMusicAccountInfo, AppleMusicRegionSelect, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { AppleMusicAccountInfo, AppleMusicRegionSetting, AppleMusicSettings } from '../components/Settings/AppleMusicSettings'
+import { ProviderSettingItem, ProviderSettingsButton } from '../components/Settings/ProviderSettingsButton'
 import { AccountButton } from '../components/Settings/AccountButton'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../components/ui/brand-logos'
+import { AppleMusicIcon, BilibiliLogo, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../components/ui/brand-logos'
 import { ShortcutSettings } from '../components/Settings/ShortcutSettings'
 import { ProxySettings } from '../components/Settings/ProxySettings'
 import { DesktopLyricsSettings } from '../components/Settings/DesktopLyricsSettings'
@@ -49,7 +54,8 @@ import {
 import { useLightTheme } from '../hooks/useLightTheme'
 import { useAmbientStore } from '../stores/ambient'
 import { ACCENT_PRESETS, accentTokensFor } from '../lib/theme-tone'
-import type { ProviderId } from '../providers/types'
+import { isFallbackOnlyProvider, isGuestLoginProvider, type ProviderId } from '../providers/types'
+import { useQrLoginDialog } from '../components/Settings/QrLoginDialog'
 import type { AppBackgroundKind, PerformanceFlags, WallpaperSelection } from '../types/domain'
 import type { MiniPlayerAppearance, SystemFontFamily } from '../types/ipc'
 import { version as appVersion } from '../../package.json'
@@ -65,7 +71,7 @@ const SETTINGS_TABS = [
   ] },
   { id: 'visual', label: '界面与窗口', items: [
     { id: 'window-close', label: '关闭窗口' },
-    { id: 'appearance', label: '主题与布局' }, { id: 'background', label: '应用背景' },
+    { id: 'appearance', label: '主题与布局' }, { id: 'top-menu', label: '顶部菜单' }, { id: 'background', label: '应用背景' },
     { id: 'interface-font', label: '界面字体' },
     { id: 'mini-player', label: '迷你播放条' }, { id: 'motion', label: '动效' },
     { id: 'game', label: '游戏模式' },
@@ -186,112 +192,46 @@ function providerLabel(source: ProviderId): string {
 }
 
 function systemDefaultFonts(platform: string | undefined): { western: string; cjk: string } {
-  return platform === 'win32'
-    ? { western: 'Segoe UI', cjk: '微软雅黑（Microsoft YaHei）' }
-    : { western: 'SF Pro', cjk: '苹方（PingFang SC）' }
+  if (platform === 'win32') return { western: 'Segoe UI', cjk: '微软雅黑（Microsoft YaHei）' }
+  if (platform === 'linux') return { western: 'Noto Sans', cjk: 'Noto Sans CJK SC（思源黑体）' }
+  return { western: 'SF Pro', cjk: '苹方（PingFang SC）' }
 }
 
-function PlaybackOrderItem({
-  source,
-  index,
-  total,
-  followOrigin,
-  onMove,
-}: {
-  source: ProviderId
-  index: number
-  total: number
-  followOrigin: boolean
-  onMove: (source: ProviderId, direction: -1 | 1) => void
-}) {
-  const dragControls = useDragControls()
-  const label = providerLabel(source)
-  const role = total === 1
-    ? '唯一音源'
-    : followOrigin
-      ? `补位 ${index + 1}`
-      : index === 0 ? '首选' : `备用 ${index}`
-
-  return (
-    <Reorder.Item
-      value={source}
-      className={styles.playbackOrderItem}
-      dragListener={false}
-      dragControls={dragControls}
-      layout
-    >
-      <span className={styles.playbackOrderRank}>{index + 1}</span>
-      <SourceBadge source={source} compact displayMode="always" />
-      <span className={styles.playbackOrderName}>{label}</span>
-      <span className={styles.playbackOrderRole}>{role}</span>
-      {total > 1 && (
-        <button
-          type="button"
-          className={`${styles.playbackOrderHandle} no-drag`}
-          aria-label={`拖动${label}调整顺序，或按 Alt 加上下箭头移动`}
-          title="拖动排序 · Alt + ↑/↓"
-          onPointerDown={(event) => dragControls.start(event)}
-          onKeyDown={(event) => {
-            if (!event.altKey) return
-            if (event.key === 'ArrowUp' && index > 0) {
-              event.preventDefault()
-              onMove(source, -1)
-            }
-            if (event.key === 'ArrowDown' && index < total - 1) {
-              event.preventDefault()
-              onMove(source, 1)
-            }
-          }}
-        >
-          <span aria-hidden="true" />
-        </button>
-      )}
-    </Reorder.Item>
-  )
-}
-
+/** 播放顺序只列参与播放的平台；在“音源与账户”关闭或退出的平台自动隐藏，重新启用后排到末尾。 */
 function PlaybackOrderEditor({
   order,
-  followOrigin,
   emptyMessage,
   onChange,
 }: {
   order: ProviderId[]
-  followOrigin: boolean
   emptyMessage: string
   onChange: (order: ProviderId[]) => void
 }) {
-  const moveSource = (source: ProviderId, direction: -1 | 1): void => {
-    const from = order.indexOf(source)
-    const to = from + direction
-    if (from < 0 || to < 0 || to >= order.length) return
-    const next = [...order]
-    ;[next[from], next[to]] = [next[to], next[from]]
-    onChange(next)
-  }
+  const listRef = useRef<HTMLOListElement>(null)
+  const still = !useMotion('dragMotion')
+  // 拖动手感与播放队列一致：整行可拖，松手回落后再提交新顺序。
+  const { rowProps, ghost } = useListReorder({
+    listRef, total: order.length, orderKey: order.join(), reducedMotion: still,
+    onMove: (from, to) => {
+      const next = [...order]
+      next.splice(to, 0, ...next.splice(from, 1))
+      onChange(next)
+    },
+  })
 
-  if (order.length === 0) {
-    return <div className={styles.playbackOrderEmpty}>{emptyMessage}</div>
-  }
+  if (order.length === 0) return <div className={styles.playbackOrderEmpty}>{emptyMessage}</div>
 
   return (
-    <Reorder.Group
-      axis="y"
-      values={order}
-      onReorder={onChange}
-      className={styles.playbackOrderList}
-    >
+    <ol ref={listRef} className={list.list} data-compact data-ranked={order.length > 1 || undefined} aria-label="播放顺序">
       {order.map((source, index) => (
-        <PlaybackOrderItem
-          key={source}
-          source={source}
-          index={index}
-          total={order.length}
-          followOrigin={followOrigin}
-          onMove={moveSource}
-        />
+        <li key={source} data-setting-row {...rowProps(index, rankStrength(index, order.length))} className={list.row} data-draggable={order.length > 1 || undefined}>
+          <span className={list.rank} aria-label={`第 ${index + 1} 位`}><span className={list.dot} /></span>
+          <LyricOriginIcon origin={source} />
+          <div className={list.name}><strong data-setting-label>{providerLabel(source)}</strong></div>
+        </li>
       ))}
-    </Reorder.Group>
+      {ghost}
+    </ol>
   )
 }
 
@@ -819,11 +759,12 @@ function markLanded(page: HTMLElement, node: HTMLElement, waitForScroll: boolean
 export function SettingsPage() {
   const smoothScroll = useMotion('smoothScrollMotion')
   const indicatorMotion = useMotion('indicatorMotion')
-  const isWindows = window.desktop?.platform === 'win32'
+  // Windows 与 Linux 都是无边框自绘窗口 + 托盘，共用"关闭窗口"的三种行为；macOS 跟随系统习惯。
+  const hasWindowCloseSettings = window.desktop?.platform === 'win32' || window.desktop?.platform === 'linux'
   const settingsTabs = useMemo(() => SETTINGS_TABS.map(section => ({
     ...section,
-    items: section.items.filter(item => item.id !== 'window-close' || isWindows)
-  })), [isWindows])
+    items: section.items.filter(item => item.id !== 'window-close' || hasWindowCloseSettings)
+  })), [hasWindowCloseSettings])
   const pageRef = useRef<HTMLDivElement>(null)
   const selectedDetailRef = useRef<string | null>(null)
   const [activeSection, setActiveSection] = useState<SettingsTab>('music')
@@ -1087,6 +1028,8 @@ export function SettingsPage() {
   const setAudioQuality = useSettingsStore((s) => s.setAudioQuality)
   const unlikeConfirmation = useSettingsStore((s) => s.unlikeConfirmation)
   const setUnlikeConfirmation = useSettingsStore((s) => s.setUnlikeConfirmation)
+  const bilibiliAlbumCover = useSettingsStore((s) => s.bilibiliAlbumCover)
+  const setBilibiliAlbumCover = useSettingsStore((s) => s.setBilibiliAlbumCover)
   const providerState = useProviderStore((s) => s.byId)
   const playbackOrder = useProviderStore((s) => s.playbackOrder)
   const preferOriginSource = useProviderStore((s) => s.preferOriginSource)
@@ -1094,15 +1037,20 @@ export function SettingsPage() {
   const sourceBadgeMode = useProviderStore((s) => s.sourceBadgeMode)
   const appleRestoring = useAppleMusicConnection((s) => !!s.account?.restoring)
   const appleWaiting = useAppleMusicConnection((s) => s.phase === 'waiting')
+  const appleRegionSelectable = useAppleMusicConnection((s) => s.account?.loginMode === 'web')
   const [loginBusy, setLoginBusy] = useState<ProviderId | null>(null)
-  const changeProviderAccount = async (source: 'netease' | 'qq', connected: boolean): Promise<void> => {
+  const changeProviderAccount = async (source: 'netease' | 'qq' | 'kugou' | 'qishui', connected: boolean): Promise<void> => {
     if (loginBusy !== null) return
+    if (!connected) {
+      // 登录统一走应用内扫码；网页登录窗作为浮层里的备用入口。
+      useQrLoginDialog.getState().show(source)
+      return
+    }
     setLoginBusy(source)
     try {
-      if (connected) await logoutMusicProvider(source)
-      else await loginMusicProvider(source)
+      await logoutMusicProvider(source)
     } catch {
-      useToastStore.getState().show(connected ? '退出登录失败，请重试' : '登录失败，请重试')
+      useToastStore.getState().show('退出登录失败，请重试')
     } finally {
       setLoginBusy(null)
     }
@@ -1286,16 +1234,24 @@ export function SettingsPage() {
                   {listProviders().map((provider) => {
                     const source = provider.descriptor.id
                     const runtime = providerState[source]
-                    const connected = runtime.auth === 'authenticated'
+                    // 哔哩哔哩无需登录，只显示启用开关。
+                    const accountless = source === 'bilibili'
+                    const connected = runtime.auth === 'authenticated' || isFallbackOnlyProvider(source)
                     const busy = loginBusy === source
                     const active = connected && runtime.enabled && runtime.playbackAvailable !== false
-                    const accountLabel = source === 'apple' && appleRestoring ? '恢复登录中'
+                    // 酷狗和汽水的游客会话始终可用；账号按钮只看是否登录了账号。
+                    const guestLogin = isGuestLoginProvider(source)
+                    const accountIn = guestLogin ? !!runtime.accountLinked : connected
+                    const accountLabel = isFallbackOnlyProvider(source)
+                      ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放' : '游客模式，搜索并播放音乐视频的音频'
+                      : guestLogin && !accountIn ? '游客模式，会员歌曲仅试听'
+                      : source === 'apple' && appleRestoring ? '恢复登录中'
                       : source === 'apple' && appleWaiting && !connected ? '等待授权'
                       : connected
                         ? runtime.playbackAvailable === false ? runtime.lastError || '当前不可播放'
                           : source === 'apple' ? '已连接' : runtime.profile?.nickname || '已登录'
                         : runtime.auth === 'unknown' ? '正在核实账号状态' : runtime.auth === 'expired' ? '登录已失效' : '未登录'
-                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : AppleMusicIcon
+                    const Logo = source === 'netease' ? NeteaseLogo : source === 'qq' ? QQMusicLogo : source === 'kugou' ? KugouLogo : source === 'qishui' ? QishuiLogo : source === 'bilibili' ? BilibiliLogo : AppleMusicIcon
                     return (
                       <div data-setting-row className={styles.providerRow} key={source}>
                         <span className={styles.providerMark} aria-hidden="true"><Logo /></span>
@@ -1310,19 +1266,30 @@ export function SettingsPage() {
                           </small>
                         </div>
                         <div className={styles.providerActions}>
-                          {source === 'apple' && <AppleMusicRegionSelect />}
+                          <ProviderSettingsButton label={`${provider.descriptor.label}设置`} disabled={!active || busy}>
+                            <ExploreModuleSettings source={source} />
+                            {source === 'bilibili' && <ProviderSettingItem label="显示专辑封面" hint="用网易云或 QQ 音乐里同一首歌的专辑封面代替视频封面；没找到时仍显示视频封面。">
+                              <Switch checked={bilibiliAlbumCover} onChange={setBilibiliAlbumCover} aria-label="哔哩哔哩显示专辑封面" />
+                            </ProviderSettingItem>}
+                            {source === 'apple' && appleRegionSelectable && <AppleMusicRegionSetting />}
+                          </ProviderSettingsButton>
                           <Switch
                             checked={active}
                             disabled={!connected || runtime.playbackAvailable === false || busy}
                             onChange={(enabled) => setProviderEnabled(source, enabled)}
                             aria-label={`${enabledLabel(active)}${provider.descriptor.label}`}
                           />
-                          {source === 'apple' ? <AppleMusicSettings /> : <AccountButton
-                            label={`${busy ? connected ? '退出中' : '登录中' : connected ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
-                            exit={connected}
+                          {source === 'apple' ? <AppleMusicSettings /> : accountless ? (
+                            // 无账号平台占位，保持开关与其他平台同一位置。
+                            <span aria-hidden="true" style={{ visibility: 'hidden', display: 'inline-flex' }}>
+                              <AccountButton label="" disabled onClick={() => {}} />
+                            </span>
+                          ) : <AccountButton
+                            label={`${busy ? accountIn ? '退出中' : '登录中' : accountIn ? '退出登录' : runtime.auth === 'expired' ? '重新登录' : '登录'}${provider.descriptor.label}`}
+                            exit={accountIn}
                             busy={busy}
                             disabled={loginBusy !== null}
-                            onClick={() => void changeProviderAccount(source, connected)}
+                            onClick={() => void changeProviderAccount(source, accountIn)}
                           />}
                         </div>
                       </div>
@@ -1418,12 +1385,11 @@ export function SettingsPage() {
                               ? '当前音源'
                               : preferOriginSource ? '跨平台补位顺序' : '固定播放顺序'}
                           </span>
-                          {visiblePlaybackOrder.length > 1 && <small>拖动排序 · 键盘可用 Alt + ↑/↓</small>}
                         </div>
                         <PlaybackOrderEditor
                           order={visiblePlaybackOrder}
-                          followOrigin={preferOriginSource}
-                          emptyMessage={playbackAuthPending ? '正在核实平台账号状态…' : '先在“音源与账户”中启用一个平台'}
+                          emptyMessage={playbackAuthPending ? '正在核实平台账号状态…'
+                            : providerState.bilibili.enabled ? '已启用哔哩哔哩，可通过搜索点播' : '先在“音源与账户”中启用一个平台'}
                           onChange={setPlaybackOrder}
                         />
                       </div>
@@ -1476,7 +1442,7 @@ export function SettingsPage() {
               <SectionHeading section={SETTINGS_TABS[1]} />
               <div className={`${styles.settingsGrid} ${styles.visualGrid}`}>
                 <div className={styles.visualColumn}>
-                  {isWindows && <WindowCloseSettings />}
+                  {hasWindowCloseSettings && <WindowCloseSettings />}
                   <section id="settings-detail-appearance" className={styles.group}>
                     <h3 className={styles.groupTitle}>主题与布局</h3>
                     <div data-setting-row className={styles.row}>
@@ -1516,6 +1482,10 @@ export function SettingsPage() {
                         />
                       </div>
                     </div>
+                  </section>
+
+                  <section id="settings-detail-top-menu" className={`${styles.group} ${styles.topMenuGroup}`}>
+                    <TopMenuSettings headingClassName={styles.groupTitle} />
                   </section>
 
                   <BackgroundSettings />
@@ -1800,9 +1770,15 @@ export function SettingsPage() {
                     ) : downloading ? (
                       <span className={styles.rowValue}>{job?.progress ?? 0}%</span>
                     ) : updateInfo?.updateAvailable ? (
-                      <button className={`${styles.action} ${styles.actionPrimary} no-drag`} onClick={() => void startDownload()}>
-                        下载更新
-                      </button>
+                      supportsInAppUpdate() ? (
+                        <button className={`${styles.action} ${styles.actionPrimary} no-drag`} onClick={() => void startDownload()}>
+                          下载更新
+                        </button>
+                      ) : (
+                        <a className={`${styles.action} ${styles.actionPrimary} no-drag`} href={updateInfo.release.htmlUrl} target="_blank" rel="noopener noreferrer">
+                          前往下载
+                        </a>
+                      )
                     ) : (
                       <button className={`${styles.action} no-drag`} disabled={checking} onClick={() => void checkForUpdate()}>
                         检查更新

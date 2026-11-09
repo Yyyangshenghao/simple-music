@@ -130,9 +130,9 @@
   width: 100%;
   border: none;
   background: none;
-  padding: 8px;
   border-radius: 10px;
   text-align: left;
+  transition: background 120ms;
 }
 
 .row:hover { background: var(--sm-bg-elevated); }
@@ -143,8 +143,10 @@
   gap: 10px;
   flex: 1;
   min-width: 0;
-  padding: 0;
+  /* 内边距放在按钮上：高亮范围与按钮悬停一致，上下扫过时来源徽标不会在行间闪断。 */
+  padding: 8px;
   border: none;
+  border-radius: inherit;
   background: none;
   text-align: left;
   cursor: pointer;

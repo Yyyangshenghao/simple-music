@@ -68,6 +68,9 @@
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
+  /* Linux 的「前往下载」是 <a>，与按钮共用这一套样式 */
+  text-decoration: none;
+  display: inline-block;
 }
 
 .actionBtn:disabled { opacity: 0.7; cursor: default; }

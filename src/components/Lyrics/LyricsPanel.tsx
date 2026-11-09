@@ -1,5 +1,7 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
+import { useTrackCover } from '../../hooks/useTrackCover'
 import { useLyricsStore } from '../../stores/lyrics'
 import { usePlayerStore } from '../../stores/player'
 import { useProviderStore } from '../../stores/providers'
@@ -12,6 +14,7 @@ import { useLyricsSourceLabel } from '../../hooks/useLyricsSourceLabel'
 import { LyricLine } from './LyricLine'
 import { KtvLine } from './KtvLine'
 import { ArtistLinks } from '../ui/ArtistLinks'
+import { SourceFallbackBadge } from '../Player/SourceFallbackBadge'
 import { PlayerBar } from '../Player/PlayerBar'
 import { LyricStylePicker } from './LyricStylePicker'
 import { LYRIC_STYLE_VIEWS } from './styles/registry'
@@ -331,6 +334,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
   const reducedMotionRef = useRef(reducedMotion)
   reducedMotionRef.current = reducedMotion
   const track = usePlayerStore((s) => s.currentTrack)
+  const trackDisplay = useBilibiliTrackDisplay(track)
+  const trackCover = useTrackCover(track)
   const lines = useLyricsStore((s) => s.lines)
   const translation = useLyricsStore((s) => s.translation)
   const romaji = useLyricsStore((s) => s.romaji)
@@ -619,7 +624,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
 
   // 内容不透明铺满面板时(有封面的纯歌词模式/3D 场景),面板自身的全屏
   // modal 级 backdrop-filter 完全被遮挡,却仍迫使 GPU 逐帧模糊取样整个视口——去掉它
-  const backdropOccluded = contentMounted && ((mode !== '3d' && !!track?.cover) || mode === '3d' || opaqueStyle)
+  const backdropOccluded = contentMounted && ((mode !== '3d' && !!trackCover) || mode === '3d' || opaqueStyle)
   // 阅读设置时保持控件可见，收起菜单后恢复空闲沉浸。
   const immersive = controlsHidden && !stylePickerOpen && !settingsPopOpen && !sourceDialogOpen
 
@@ -679,10 +684,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
         <>
           {/* 不透明铺满的样式（如镜台）会盖住底层：不垫封面虚化与霞光，免得它们在下面空转动画。 */}
           {!opaqueStyle && <>
-            {track?.cover && (
+            {trackCover && (
               <div
                 className={styles.blurBg}
-                style={{ backgroundImage: `url(${sizedImage(track.cover, LYRICS_COVER_PX)})` }}
+                style={{ backgroundImage: `url(${sizedImage(trackCover, LYRICS_COVER_PX)})` }}
               />
             )}
             <div className={styles.auroraStage} aria-hidden="true" />
@@ -697,10 +702,10 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
       {mode === 'lyrics' && contentMounted && (
         <>
           {/* 封面模糊背景 */}
-          {track?.cover && (
+          {trackCover && (
             <div
               className={styles.blurBg}
-              style={{ backgroundImage: `url(${sizedImage(track.cover, LYRICS_COVER_PX)})` }}
+              style={{ backgroundImage: `url(${sizedImage(trackCover, LYRICS_COVER_PX)})` }}
             />
           )}
 
@@ -727,8 +732,8 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                 <div className={styles.recordIdentity}>
                   <div className={styles.coverFlip} ref={coverFlipRef}>
                     <div className={styles.coverBreath} data-playing={playing}>
-                      {track?.cover ? (
-                        <StageCoverArt src={sizedImage(track.cover, LYRICS_COVER_PX)} alt={track.name} />
+                      {trackCover ? (
+                        <StageCoverArt src={sizedImage(trackCover, LYRICS_COVER_PX)} alt={trackDisplay?.name ?? track?.name ?? ''} />
                       ) : (
                         <div className={styles.coverPlaceholder} aria-hidden="true">
                           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.2">
@@ -740,14 +745,18 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
                     </div>
                   </div>
                   <div className={styles.trackMeta}>
-                    <MarqueeTrackName text={track?.name ?? '未在播放'} />
-                    <ArtistLinks
-                      className={styles.artistName}
-                      artists={track?.artists}
-                      fallback={track?.artist ?? '—'}
-                      source={track?.source ?? 'netease'}
-                      onBeforeNavigate={onClose}
-                    />
+                    <MarqueeTrackName text={trackDisplay?.name ?? track?.name ?? '未在播放'} />
+                    <div className={styles.artistRow}>
+                      <ArtistLinks
+                        className={styles.artistName}
+                        artists={trackDisplay ? undefined : track?.artists}
+                        fallback={trackDisplay?.artist ?? track?.artist ?? '—'}
+                        source={track?.source ?? 'netease'}
+                        onBeforeNavigate={onClose}
+                      />
+                      <SourceFallbackBadge />
+                    </div>
+                    {trackDisplay?.caption && <p className={styles.trackCaption} title={trackDisplay.caption}>{trackDisplay.caption}</p>}
                   </div>
                 </div>
                 {playerStyle === 'stage' && (
@@ -943,7 +952,7 @@ export function LyricsPanel({ open, controlsHidden, onClose }: LyricsPanelProps)
           style={{ '--scene-base': backgroundColor || '#05060c' } as React.CSSProperties}
         >
           <Suspense fallback={null}>
-            <LyricsScene coverUrl={track?.cover} lightBackground={lightTheme} />
+            <LyricsScene coverUrl={trackCover} lightBackground={lightTheme} />
           </Suspense>
 
           <div className={styles.sceneTopFade} aria-hidden="true" />

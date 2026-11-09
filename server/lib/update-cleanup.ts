@@ -32,7 +32,7 @@ export const MAC_SWAP_SCRIPT = 'mac-swap.sh'
 
 /** 从安装包文件名取版本号：Simple-Music-2.6.0-arm64.dmg、Simple.Music-2.0.2-arm64.dmg、Simple-Music-2.6.0-Setup.exe */
 export function installerVersion(name: string): string {
-  const match = String(name || '').match(/(\d+\.\d+\.\d+)/)
+  const match = String(name || '').match(/(\d+\.\d+\.\d+(?:-(?:beta|rc)\.\d+)?)/)
   return match ? match[1] : ''
 }
 

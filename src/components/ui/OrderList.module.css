@@ -1,0 +1,116 @@
+/* 可排序的来源列表（歌词来源、播放顺序共用）：序号 · 图标 · 名称与状态 · 右侧操作 · 开关 · 上下移动 */
+.list { position: relative; margin: 0; padding: 0; list-style: none; }
+.row { display: flex; align-items: center; gap: 12px; min-height: 70px; border-top: 1px solid var(--sm-border); }
+.rank { position: relative; z-index: 1; flex: 0 0 20px; height: 20px; display: grid; place-items: center; }
+/* 先后顺序：圆点从实心强调色逐行变浅（--rank-strength 由行序算出），由左侧渐隐的细线串起，不用数字。 */
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--sm-accent) calc(var(--rank-strength, 1) * 100%), var(--sm-bg-base));
+}
+.row[data-off] .dot { background: transparent; box-shadow: inset 0 0 0 1.5px var(--sm-border-strong); }
+/* 顺序线：每行画自己的上下两段，在圆点处留空，首行无上段、末行无下段；颜色随行序（--rank-strength）变浅。 */
+.list[data-ranked] > .row { position: relative; }
+.list[data-ranked] > .row::before,
+.list[data-ranked] > .row::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--rank-size, 20px) / 2 - 0.5px);
+  width: 1px;
+  background: color-mix(in srgb, var(--sm-accent) calc(var(--rank-strength, 1) * 45%), var(--sm-border));
+  pointer-events: none;
+}
+.list[data-ranked] > .row::before { top: -1px; bottom: calc(50% + 7px); }
+.list[data-ranked] > .row::after { top: calc(50% + 7px); bottom: 0; }
+.list[data-ranked] > .row:first-child::before,
+.list[data-ranked] > .row:nth-last-child(2)::after { display: none; }
+.list > [aria-hidden] > .row::before,
+.list > [aria-hidden] > .row::after { display: none; }
+/* 拖动中各行连同自己的线段一起让位，线会断开：改由列表画一条完整的线，松手后恢复逐行线段。 */
+.list[data-ranked]:has(> .row[data-reordering]) > .row::before,
+.list[data-ranked]:has(> .row[data-reordering]) > .row::after { display: none; }
+.list[data-ranked]:has(> .row[data-reordering])::before {
+  content: '';
+  position: absolute;
+  top: var(--rail-inset, 35px);
+  bottom: var(--rail-inset, 35px);
+  left: calc(var(--rank-size, 20px) / 2 - 0.5px);
+  width: 1px;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--sm-accent) 45%, var(--sm-border)), color-mix(in srgb, var(--sm-accent) 16%, var(--sm-border)));
+  pointer-events: none;
+}
+/* 有顺序线时分隔线从图标列开始，不与左侧的线交叉。 */
+.list[data-ranked] > .row {
+  border-top-color: transparent;
+  background-image: linear-gradient(var(--sm-border), var(--sm-border));
+  background-size: calc(100% - var(--rank-size, 20px) - 12px) 1px;
+  background-position: right top;
+  background-repeat: no-repeat;
+}
+.name { flex: 1; min-width: 0; display: grid; gap: 5px; }
+.name strong { color: var(--sm-text-primary); font-size: 13px; font-weight: 550; }
+.name > span { color: var(--sm-text-secondary); font-size: 11px; line-height: 1.4; }
+.name > .statusIssue { color: var(--sm-text-primary); }
+/* 没有状态说明时不占行：否则网格间距把名称顶到图标中线以上。 */
+.name > span:empty { display: none; }
+.name strong { transition: opacity 200ms var(--sm-ease-out); }
+.row[data-off] .name strong { opacity: 0.45; }
+/* 被锁定（未连接、未登录）的行整行冻结：说明文字也变淡，开关与排序禁用，只留去连接的按钮。 */
+.row[data-locked] .name > span { opacity: 0.7; }
+
+.row > :is(.action, .quiet) { flex: 0 0 auto; }
+/* 需要处理的动作（去连接、去登录、测试恢复）：常驻、轻底、无描边。 */
+.action {
+  height: 28px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background-color 140ms var(--sm-ease-out);
+}
+.action:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.action:disabled { opacity: 0.5; cursor: default; }
+/* 低频辅助动作（测试）：只在悬停该行或进行中时出现；隐藏时仍占位，避免出现时挤动开关。 */
+.quiet {
+  height: 28px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--sm-radius-pill);
+  background: transparent;
+  color: var(--sm-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms var(--sm-ease-out), background-color 140ms var(--sm-ease-out), color 140ms var(--sm-ease-out);
+}
+.row:hover .quiet:not(:disabled), .quiet[data-busy] { opacity: 1; }
+.quiet:hover:not(:disabled) { background: var(--sm-fill-subtle); color: var(--sm-text-primary); }
+.quiet:disabled { cursor: default; }
+.row[data-reordering] .quiet { opacity: 0; }
+
+/* 紧凑单行（播放顺序）：只有图标与名称。 */
+.list[data-compact] { --rail-inset: 27px; }
+.list[data-compact] .row { min-height: 54px; gap: 10px; }
+
+/* 拖动排序：与播放队列一致，其余行让位、被拖行留空，松手时一并复位（过渡只在拖动期间生效）。 */
+.row[data-draggable] { cursor: grab; touch-action: none; user-select: none; }
+.row[data-reordering] { translate: 0 var(--reorder-shift, 0px); transition: translate 220ms var(--sm-ease-out); }
+.row[data-drag-placeholder] { opacity: 0; }
+/* 落位反馈：回落的行底色轻闪后淡出，替代布局位移动画；减弱拖动动效时不播放。 */
+.row[data-landed] { border-radius: 12px; }
+.row[data-landed="a"] { animation: landedA 520ms var(--sm-ease-out); }
+.row[data-landed="b"] { animation: landedB 520ms var(--sm-ease-out); }
+@keyframes landedA { from { background-color: var(--sm-fill-hover); } to { background-color: transparent; } }
+@keyframes landedB { from { background-color: var(--sm-fill-hover); } to { background-color: transparent; } }
+/* 浮起的行没有分隔线，左右留出内边距并带底色。 */
+.list > [aria-hidden] > .row { box-sizing: content-box; margin-inline: -12px; padding-inline: 12px; border-top: 0; border-radius: 14px; }
+
+@media (max-width: 700px) {
+  .row { gap: 8px; flex-wrap: wrap; padding: 10px 0; }
+  .name { min-width: 130px; }
+}

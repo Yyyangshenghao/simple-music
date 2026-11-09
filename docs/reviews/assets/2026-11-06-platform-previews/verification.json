@@ -1,0 +1,301 @@
+{
+  "environment": "macOS隔离Electron dev，全部账号与内容为模拟，不执行登录/播放/平台写入",
+  "results": [
+    {
+      "source": "qq",
+      "width": 1536,
+      "height": 864,
+      "theme": "dark",
+      "panel": {
+        "x": 401,
+        "y": 64,
+        "width": 793,
+        "height": 546
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 170,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "qq",
+      "width": 1536,
+      "height": 864,
+      "theme": "light",
+      "panel": {
+        "x": 401,
+        "y": 64,
+        "width": 793,
+        "height": 546
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 170,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "qq",
+      "width": 960,
+      "height": 540,
+      "theme": "dark",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "source": "qq",
+      "width": 960,
+      "height": 540,
+      "theme": "light",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "source": "apple",
+      "width": 1536,
+      "height": 864,
+      "theme": "dark",
+      "panel": {
+        "x": 401,
+        "y": 127.8984375,
+        "width": 793,
+        "height": 600
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 233.8984375,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "apple",
+      "width": 1536,
+      "height": 864,
+      "theme": "light",
+      "panel": {
+        "x": 401,
+        "y": 127.8984375,
+        "width": 793,
+        "height": 600
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 233.8984375,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "apple",
+      "width": 960,
+      "height": 540,
+      "theme": "dark",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "source": "apple",
+      "width": 960,
+      "height": 540,
+      "theme": "light",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "source": "kugou",
+      "width": 1536,
+      "height": 864,
+      "theme": "dark",
+      "panel": {
+        "x": 401,
+        "y": 186,
+        "width": 793,
+        "height": 546
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 292,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "kugou",
+      "width": 1536,
+      "height": 864,
+      "theme": "light",
+      "panel": {
+        "x": 401,
+        "y": 186,
+        "width": 793,
+        "height": 546
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 292,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "kugou",
+      "width": 960,
+      "height": 540,
+      "theme": "dark",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "source": "kugou",
+      "width": 960,
+      "height": 540,
+      "theme": "light",
+      "panel": {
+        "x": 28.796875,
+        "y": 64,
+        "width": 733.3984375,
+        "height": 344
+      },
+      "preview": {
+        "x": 353.640625,
+        "y": 170,
+        "width": 374.5546875,
+        "height": 216
+      }
+    },
+    {
+      "source": "qishui",
+      "width": 1536,
+      "height": 864,
+      "theme": "dark",
+      "panel": {
+        "x": 401,
+        "y": 186,
+        "width": 793,
+        "height": 546
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 292,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "qishui",
+      "width": 1536,
+      "height": 864,
+      "theme": "light",
+      "panel": {
+        "x": 401,
+        "y": 186,
+        "width": 793,
+        "height": 546
+      },
+      "preview": {
+        "x": 755.421875,
+        "y": 292,
+        "width": 414.578125,
+        "height": 420
+      }
+    },
+    {
+      "source": "qishui",
+      "width": 960,
+      "height": 540,
+      "theme": "dark",
+      "panel": {
+        "x": 28.796875,
+        "y": 66,
+        "width": 733.3984375,
+        "height": 342
+      },
+      "preview": {
+        "x": 357.890625,
+        "y": 172,
+        "width": 380.3046875,
+        "height": 216
+      }
+    },
+    {
+      "source": "qishui",
+      "width": 960,
+      "height": 540,
+      "theme": "light",
+      "panel": {
+        "x": 28.796875,
+        "y": 66,
+        "width": 733.3984375,
+        "height": 342
+      },
+      "preview": {
+        "x": 357.890625,
+        "y": 172,
+        "width": 380.3046875,
+        "height": 216
+      }
+    }
+  ],
+  "checks": [
+    "四平台×深浅主题×两种尺寸",
+    "平台专属模块开关同步预览",
+    "真实拖动同步预览顺序",
+    "停用后禁用设置",
+    "B站保留专属设置，无虚构探索模块"
+  ],
+  "errors": []
+}

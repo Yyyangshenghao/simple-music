@@ -15,7 +15,7 @@ const providers = (netease: string, qq: string, apple = 'anonymous', enabled = t
 
 beforeEach(() => {
   vi.resetAllMocks()
-  useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+  useSettingsStore.setState({ lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
 })
 
 describe('歌词来源与播放平台分开', () => {
@@ -34,26 +34,40 @@ describe('歌词来源与播放平台分开', () => {
   it('启动时登录状态未确认，已启用平台先不按游客查询；停用平台照常游客', () => {
     providers('unknown', 'unknown')
     expect(lyricServiceMode('netease')).toBeNull()
-    expect(lyricServiceSources()).toEqual([])
+    expect(lyricServiceSources()).toEqual(['qishui'])
     providers('unknown', 'unknown', 'anonymous', false)
     expect(lyricServiceMode('qq')).toBe('guest')
   })
 
   it('参与平台按播放顺序在前，游客平台在后，不重复', () => {
     providers('anonymous', 'authenticated', 'authenticated')
-    expect(lyricServiceSources()).toEqual(['apple', 'qq', 'netease'])
+    expect(lyricServiceSources()).toEqual(['apple', 'qq', 'netease', 'qishui'])
     providers('anonymous', 'anonymous')
-    expect(lyricServiceSources()).toEqual(['netease', 'qq'])
+    expect(lyricServiceSources()).toEqual(['netease', 'qq', 'qishui'])
     useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
-    expect(lyricServiceSources()).toEqual([])
+    expect(lyricServiceSources()).toEqual(['qishui'])
   })
 
   it('设置中关闭的平台即使已登录也不参与歌词，Apple 不受影响', () => {
     providers('authenticated', 'anonymous', 'authenticated')
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: false, qq: true, apple: true, qishui: true } })
     expect(lyricServiceMode('netease')).toBeNull()
     expect(lyricServiceMode('qq')).toBe('guest')
-    expect(lyricServiceSources()).toEqual(['apple', 'qq'])
+    expect(lyricServiceSources()).toEqual(['apple', 'qq', 'qishui'])
+  })
+
+  it('汽水歌词支持游客会话：参与播放按账号排序，未参与也以游客查询；设置关闭后不再参与', () => {
+    providers('anonymous', 'anonymous')
+    expect(lyricServiceMode('qishui')).toBe('guest')
+    useProviderStore.setState({
+      playbackOrder: ['qishui', 'netease'],
+      byId: { ...useProviderStore.getState().byId, qishui: { enabled: true, auth: 'authenticated' } } as never,
+    })
+    expect(lyricServiceMode('qishui')).toBe('account')
+    expect(lyricServiceSources()).toEqual(['qishui', 'netease', 'qq'])
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: false } })
+    expect(lyricServiceMode('qishui')).toBeNull()
+    expect(lyricServiceSources()).toEqual(['netease', 'qq'])
   })
 
   it('游客搜索只发送关键词并标记 guest，结果补齐来源；上游错误不当作空结果', async () => {

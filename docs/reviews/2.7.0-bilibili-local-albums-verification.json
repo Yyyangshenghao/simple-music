@@ -1,0 +1,67 @@
+{
+  "date": "2026-11-05",
+  "branch": "dev/2.7.0",
+  "automated": {
+    "typecheck": "passed",
+    "testFiles": 429,
+    "passed": 4070,
+    "skipped": 2
+  },
+  "ui": {
+    "albums": 30,
+    "biliPlayed": {
+      "sources": [
+        "bilibili"
+      ],
+      "count": 1,
+      "index": 0
+    },
+    "compilationPlayed": {
+      "sources": [
+        "local",
+        "local",
+        "local",
+        "local"
+      ],
+      "count": 4,
+      "index": 0
+    },
+    "filteredPlayed": {
+      "sources": [
+        "local"
+      ],
+      "count": 1,
+      "index": 0
+    },
+    "beforeScroll": 300,
+    "afterScroll": 300,
+    "rawLinkSearchRequests": 0,
+    "localReadRecovered": true,
+    "videoReadRecovered": true,
+    "pageErrors": []
+  },
+  "bilibiliLive": {
+    "status": 200,
+    "source": "bilibili",
+    "bvid": "BV1GJ411x7h7",
+    "duration": 213000,
+    "titlePresent": true,
+    "uploaderPresent": true,
+    "playback": {
+      "candidates": 9
+    }
+  },
+  "localLive": {
+    "tracks": 5,
+    "albums": 4,
+    "compilationTracks": 2,
+    "sameNameAlbums": 2,
+    "idsStable": true,
+    "tagsRestored": 2
+  },
+  "limitations": [
+    "未验收实际音频播放和 Finder 打开文件",
+    "短链接和指定非首 P 暂不支持",
+    "Apple 真实账号验收缺口沿用第一批"
+  ]
+}

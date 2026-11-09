@@ -299,16 +299,16 @@ describe('游客歌词来源设置', () => {
   it('平台参与开关独立保存，重载保留；旧存档默认开启', () => {
     let saved = '{}'
     vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
     useSettingsStore.getState().setLyricsPlatformSource('netease', false)
     useSettingsStore.getState().setLyricsPlatformSource('apple', false)
     useSettingsStore.getState().setLyricsPlatformSource('local' as 'qq', false)
-    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true } })
+    useSettingsStore.setState({ lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true } })
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: false, qq: true, apple: false })
+    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: false, qq: true, apple: false, qishui: true })
     saved = '{}'
     useSettingsStore.getState().loadFromLocal()
-    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: true, qq: true, apple: true })
+    expect(useSettingsStore.getState().lyricsPlatformSources).toEqual({ netease: true, qq: true, apple: true, qishui: true })
   })
 
   it('拒绝未知平台与非布尔值', () => {
@@ -317,5 +317,55 @@ describe('游客歌词来源设置', () => {
     useSettingsStore.getState().setLyricsGuestSource('apple' as 'qq', false)
     useSettingsStore.getState().setLyricsGuestSource('qq', 'false' as unknown as boolean)
     expect(useSettingsStore.getState().lyricsGuestSources).toEqual({ netease: true, qq: true })
+  })
+})
+
+
+describe('探索模块持久化', () => {
+  it('排序与开关重载后保留，各音源互不覆盖，恢复默认只影响当前音源', () => {
+    let saved = ''
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    useSettingsStore.getState().setExploreLayout('netease', [{ id: 'listening', enabled: false }])
+    useSettingsStore.getState().setExploreLayout('qq', [{ id: 'toplists', enabled: false }])
+    useSettingsStore.setState(initialState, true)
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().exploreLayouts.netease[0]).toEqual({ id: 'listening', enabled: false })
+    expect(useSettingsStore.getState().exploreLayouts.qq[0]).toEqual({ id: 'toplists', enabled: false })
+    useSettingsStore.getState().setExploreLayout('netease', [])
+    expect(useSettingsStore.getState().exploreLayouts.netease).toEqual(initialState.exploreLayouts.netease)
+    expect(useSettingsStore.getState().exploreLayouts.qq[0].enabled).toBe(false)
+  })
+})
+
+describe('顶部菜单持久化', () => {
+  it('重载保留顺序及开关，恢复默认只影响顶部菜单', () => {
+    let saved = '{}'
+    vi.stubGlobal('localStorage', { getItem: () => saved, setItem: (_key: string, value: string) => { saved = value } })
+    const settings = useSettingsStore.getState()
+    settings.setContentGutter(48)
+    settings.setTopMenuItemEnabled('settings', false)
+    settings.moveTopMenuItem('library', 0)
+    settings.setTopMenuItemEnabled('search', false)
+    const ordered = useSettingsStore.getState().topMenu
+    expect(ordered[0].id).toBe('library')
+    expect(ordered.filter(item => !item.enabled).map(item => item.id)).toEqual(['search', 'settings'])
+    useSettingsStore.setState(initialState, true)
+    settings.loadFromLocal()
+    expect(useSettingsStore.getState().topMenu).toEqual(ordered)
+    settings.resetTopMenu()
+    expect(useSettingsStore.getState().topMenu).toEqual(initialState.topMenu)
+    expect(useSettingsStore.getState().contentGutter).toBe(48)
+  })
+
+  it('旧存档沿用默认菜单，部分配置保留有效项并补齐新入口', () => {
+    let saved = '{}'
+    vi.stubGlobal('localStorage', { getItem: () => saved })
+    useSettingsStore.getState().loadFromLocal()
+    expect(useSettingsStore.getState().topMenu).toEqual(initialState.topMenu)
+    saved = JSON.stringify({ topMenu: [null, { id: 'removed', enabled: false }, { id: 'settings', enabled: false }, { id: 'settings', enabled: true }] })
+    useSettingsStore.getState().loadFromLocal()
+    const { topMenu } = useSettingsStore.getState()
+    expect(topMenu[0]).toEqual({ id: 'settings', enabled: false })
+    expect(topMenu.slice(1)).toEqual(initialState.topMenu.filter(item => item.id !== 'settings'))
   })
 })

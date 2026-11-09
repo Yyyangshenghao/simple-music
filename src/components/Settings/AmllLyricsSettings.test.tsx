@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
     setSourceOrder: vi.fn(), clearRemembered: vi.fn(), forgetTrack: vi.fn(), testSource: vi.fn(),
   },
   settings: {
-    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true },
+    lyricsAmllFallback: true, lyricsKugouFallback: true, lyricsGuestSources: { netease: true, qq: true }, lyricsPlatformSources: { netease: true, qq: true, apple: true, qishui: true },
     setLyricsAmllFallback: vi.fn(), setLyricsKugouFallback: vi.fn(), setLyricsGuestSource: vi.fn(), setLyricsPlatformSource: vi.fn(),
   },
   providers: { byId: { netease: { enabled: true, auth: 'anonymous' }, qq: { enabled: true, auth: 'anonymous' }, apple: { enabled: true, auth: 'anonymous' } } },
@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
 vi.mock('react', async (original) => ({
   ...await original<typeof import('react')>(),
   useCallback: (callback: unknown) => callback,
+  useRef: (current: unknown) => ({ current }),
   useState: (value: unknown) => typeof value === 'boolean' ? [h.confirm, h.setConfirm] : value === 'sunny' ? [h.sample, h.setSample] : value === '' ? [h.search, vi.fn()] : [value, vi.fn()],
 }))
 vi.mock('framer-motion', () => ({ motion: { li: 'li' } }))
@@ -34,6 +35,8 @@ const navigation = vi.hoisted(() => ({ requestSettingsMusic: vi.fn() }))
 vi.mock('../../stores/navigation', () => ({ useNavigationStore: { getState: () => navigation } }))
 vi.mock('../ui/InfoButton', () => ({ InfoButton: () => null }))
 vi.mock('../ui/Switch', () => ({ Switch: () => null }))
+const reorder = vi.hoisted(() => ({ options: undefined as undefined | { canDrag?(index: number): boolean; onMove(from: number, to: number): void } }))
+vi.mock('../ui/useListReorder', () => ({ rankStrength: () => ({}), useListReorder: (options: typeof reorder.options) => { reorder.options = options; return { drag: null, rowProps: () => ({}), ghost: null } } }))
 vi.mock('./LyricsMemoryDialog', () => ({ LyricsMemoryDialog: () => null }))
 import { AmllLyricsSettings } from './AmllLyricsSettings'
 
@@ -80,21 +83,21 @@ beforeEach(() => {
   h.settings.lyricsAmllFallback = true
   h.settings.lyricsKugouFallback = true
   h.settings.lyricsGuestSources = { netease: true, qq: true }
-  h.settings.lyricsPlatformSources = { netease: true, qq: true, apple: true }
+  h.settings.lyricsPlatformSources = { netease: true, qq: true, apple: true, qishui: true }
   h.providers.byId.netease = { enabled: true, auth: 'anonymous' }
   h.providers.byId.qq = { enabled: true, auth: 'anonymous' }
   h.providers.byId.apple = { enabled: true, auth: 'anonymous' }
 })
 
 describe('歌词来源设置', () => {
-  it('展示五个编号优先级，通过宿主动作交换完整顺序', () => {
+  it('按顺序展示六个来源，通过宿主动作交换完整顺序', () => {
     const element = AmllLyricsSettings()
     const rows = elements(elements(element, 'ol')[0], 'li')
-    expect(rows.map(row => elements(row, 'strong')[0].props.children)).toEqual(['Apple Music', '网易云音乐', 'QQ 音乐', 'AMLL 逐字歌词库', '酷狗音乐'])
-    expect(rows.map(row => elements(row, 'span')[0].props['aria-label'])).toEqual(['第 1 优先级', '第 2 优先级', '第 3 优先级', '第 4 优先级', '第 5 优先级'])
-    expect(button(element, '提高网易云音乐优先级').props.disabled).toBe(false)
-    button(element, '提高QQ 音乐优先级').props.onClick()
-    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['apple', 'qq', 'netease', 'amll', 'kugou'])
+    expect(rows.map(row => elements(row, 'strong')[0].props.children)).toEqual(['Apple Music', '网易云音乐', 'QQ 音乐', 'AMLL 逐字歌词库', '酷狗音乐', '汽水音乐'])
+    expect(rows.map(row => elements(row, 'span')[0].props['aria-label'])).toEqual(['第 1 优先级', '第 2 优先级', '第 3 优先级', '第 4 优先级', '第 5 优先级', '第 6 优先级'])
+    expect(reorder.options!.canDrag).toBeUndefined()
+    reorder.options!.onMove(2, 1)
+    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['apple', 'qq', 'netease', 'amll', 'kugou', 'qishui'])
     expect(infoText(element)).toContain('从下一首歌曲生效')
   })
 
@@ -107,8 +110,8 @@ describe('歌词来源设置', () => {
     labelled(element, '使用Apple Music')!.props.onChange(false)
     expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('apple', false)
     expect(h.settings.setLyricsGuestSource).not.toHaveBeenCalled()
-    button(element, '降低Apple Music优先级').props.onClick()
-    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['netease', 'apple', 'qq', 'amll', 'kugou'])
+    reorder.options!.onMove(0, 1)
+    expect(h.source.setSourceOrder).toHaveBeenCalledWith(['netease', 'apple', 'qq', 'amll', 'kugou', 'qishui'])
 
     h.settings.setLyricsPlatformSource.mockClear()
     h.providers.byId.apple = { enabled: true, auth: 'expired' }
@@ -129,7 +132,9 @@ describe('歌词来源设置', () => {
     expect(rows[0].props['data-locked']).toBe(true)
     expect(text(rows[0])).toContain('未连接 Apple Music，连接后生效')
     expect(labelled(element, '使用Apple Music')!.props).toMatchObject({ checked: false, disabled: true })
-    expect(button(element, '降低Apple Music优先级').props.disabled).toBe(true)
+    // 未连接时仍可调整位置，连接后按此顺序生效。
+    reorder.options!.onMove(0, 2)
+    expect(h.source.setSourceOrder).toHaveBeenLastCalledWith(['netease', 'qq', 'apple', 'amll', 'kugou', 'qishui'])
     button(rows[0], '去连接').props.onClick()
     expect(navigation.requestSettingsMusic).toHaveBeenCalled()
   })
@@ -158,7 +163,7 @@ describe('歌词来源设置', () => {
 
   it('每个来源一个开关，关闭后不可测试并显示已关闭', () => {
     h.settings.lyricsAmllFallback = false
-    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true, qishui: true }
     const element = AmllLyricsSettings()
     const rows = elements(elements(element, 'ol')[0], 'li')
     expect(text(rows[1])).toContain('已关闭')
@@ -173,15 +178,15 @@ describe('歌词来源设置', () => {
     expect(h.settings.setLyricsGuestSource).not.toHaveBeenCalled()
   })
 
-  it('重新启用平台时一并恢复游客查询，未登录显示以游客身份查询', () => {
+  it('重新启用平台时一并恢复游客查询，未登录显示游客身份', () => {
     h.settings.lyricsGuestSources = { netease: false, qq: true }
-    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true }
+    h.settings.lyricsPlatformSources = { netease: false, qq: true, apple: true, qishui: true }
     const element = AmllLyricsSettings()
     labelled(element, '使用网易云音乐')!.props.onChange(true)
     expect(h.settings.setLyricsPlatformSource).toHaveBeenCalledWith('netease', true)
     expect(h.settings.setLyricsGuestSource).toHaveBeenCalledWith('netease', true)
     const rows = elements(elements(element, 'ol')[0], 'li')
-    expect(text(rows[2])).toContain('未登录，以游客身份查询')
+    expect(text(rows[2])).toContain('游客身份')
     expect(infoText(element)).toContain('不使用账号')
     expect(infoText(element)).toContain('只发送歌名与歌手')
   })

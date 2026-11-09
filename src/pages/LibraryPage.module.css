@@ -230,6 +230,13 @@
   padding: 0 12px 12px;
 }
 
+.localViewSwitch { margin: 0 12px 18px; }
+.localAlbumGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; padding: 0 6px; }
+.localAlbumHeader { display: flex; align-items: center; gap: 16px; margin: 0 12px 18px; }
+.localAlbumHeader h2 { margin: 0; color: var(--sm-text-primary); font-size: 22px; overflow-wrap: anywhere; }
+.localAlbumHeader p { margin: 6px 0 0; color: var(--sm-text-secondary); font-size: 12px; }
+.localLoadError { display: flex; align-items: center; gap: 16px; padding: 12px; color: var(--sm-text-secondary); font-size: 13px; }
+
 .folderChip {
   display: flex;
   align-items: center;

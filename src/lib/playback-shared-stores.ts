@@ -18,9 +18,10 @@ import { useShortcutStore } from '../stores/shortcuts'
 import { useNavigationStore } from '../stores/navigation'
 import { useToastStore } from '../stores/toast'
 import { useKaraokeStore } from '../stores/karaoke'
+import { useBilibiliCoverStore } from '../stores/bilibili-covers'
 import { runShortcutAction } from './shortcut-actions'
 import { isShortcutAction } from './shortcuts'
-import { completeMusicProviderLogin } from './provider-login'
+import { completeMusicProviderLogin, refreshKugouAccount, commitQishuiLogin } from './provider-login'
 import { logoutMusicProvider } from './provider-logout'
 import { expireProviderAccount } from '../stores/provider-auth'
 import { providerAccountSession } from './provider-account-session'
@@ -38,6 +39,7 @@ export const playbackStores = {
   ambient: useAmbientStore, shortcuts: useShortcutStore, navigation: useNavigationStore,
   toast: useToastStore,
   karaoke: useKaraokeStore,
+  bilibiliCovers: useBilibiliCoverStore,
   controls: createStore(() => ({
     cancelLyricsSelection() {
       const state = useLyricsSourceStore.getState()
@@ -52,8 +54,13 @@ export const playbackStores = {
       if ((source !== 'netease' && source !== 'qq') || typeof cookie !== 'string') throw new Error('无效的登录参数')
       return completeMusicProviderLogin(source, cookie)
     },
+    refreshKugouAccount() { return refreshKugouAccount() },
+    commitQishuiLogin(key: unknown) {
+      if (typeof key !== 'string') throw new Error('无效的扫码票据')
+      return commitQishuiLogin(key)
+    },
     logout(source: unknown) {
-      if (source !== 'netease' && source !== 'qq') throw new Error('无效的音源')
+      if (source !== 'netease' && source !== 'qq' && source !== 'kugou' && source !== 'qishui') throw new Error('无效的音源')
       return logoutMusicProvider(source)
     },
     expireAccount(source: unknown, message: unknown, epoch: unknown) {
@@ -70,7 +77,7 @@ export const remoteActions: Record<string, readonly string[]> = {
   playlist: ['loadUserPlaylists', 'setCurrentPlaylist', 'setQueue', 'clearQueue', 'addToQueue', 'addManyToQueue', 'moveQueueItem', 'playNextInQueue', 'removeQueueItem', 'ensureQueueDetails', 'playAt', 'next', 'prev', 'toggleShelf', 'setShelfMode'],
   shuange: ['enter', 'refresh', 'leave', 'next', 'prev', 'playFullCurrent', 'notInterestedCurrent', 'toggleLike', 'loadIndex'],
   sleep: ['start', 'setFinishTrack', 'cancel'],
-  settings: ['setHotkeys', 'setLocalHotkeys', 'setGlobalHotkeysEnabled', 'setMediaKeysEnabled', 'resetShortcuts', 'setNeteaseLoggedIn', 'setQQLoggedIn', 'setNeteaseProfile', 'setQQProfile', 'setShelfShowPodcasts', 'setShelfMergeCollections', 'setUnlikeConfirmation', 'setLiveBackgroundKeep', 'setLyricsPanelMode', 'setLyrics3dEffect', 'setLyrics3dStyle', 'setLyricsOverlayBlur', 'setLyricsStage3d', 'setLyrics3dParams', 'resetLyrics3dParams', 'setLyricsFontScale', 'setLyricsLayout', 'resetLyricsLayout', 'setLyricsShowTranslation', 'setLyricsShowRoma', 'setLyricsInstrumentalHint', 'setLyricsAmllFallback', 'setLyricsKugouFallback', 'setLyricsGuestSource', 'setLyricsPlatformSource', 'setLyricsPlayerStyle', 'setThemeMode', 'setContentLayout', 'setContentGutter', 'setAudioQuality', 'setKaraokeModel', 'setKaraokeVocalMix', 'setPlayMode', 'setFontFamily', 'setFontFamilyCjk', 'setLyricsFontFamily', 'setLyricsFontFamilyCjk', 'setLyrics3dFontFamily', 'setLyrics3dFontFamilyCjk', 'setPerformance', 'applyPerformancePreset', 'setMiniPlayerEnabled', 'setMiniPlayerWidth', 'setMiniPlayerAppearance'],
+  settings: ['setHotkeys', 'setLocalHotkeys', 'setGlobalHotkeysEnabled', 'setMediaKeysEnabled', 'resetShortcuts', 'setNeteaseLoggedIn', 'setQQLoggedIn', 'setNeteaseProfile', 'setQQProfile', 'setShelfShowPodcasts', 'setShelfMergeCollections', 'setUnlikeConfirmation', 'setExploreLayout', 'setQishuiPinnedModes', 'setBilibiliAlbumCover', 'setLiveBackgroundKeep', 'setLyricsPanelMode', 'setLyrics3dEffect', 'setLyrics3dStyle', 'setLyricsOverlayBlur', 'setLyricsStage3d', 'setLyrics3dParams', 'resetLyrics3dParams', 'setLyricsFontScale', 'setLyricsLayout', 'resetLyricsLayout', 'setLyricsShowTranslation', 'setLyricsShowRoma', 'setLyricsInstrumentalHint', 'setLyricsAmllFallback', 'setLyricsKugouFallback', 'setLyricsGuestSource', 'setLyricsPlatformSource', 'setLyricsPlayerStyle', 'setThemeMode', 'setContentLayout', 'setContentGutter', 'setTopMenuItemEnabled', 'moveTopMenuItem', 'resetTopMenu', 'setAudioQuality', 'setKaraokeModel', 'setKaraokeVocalMix', 'setPlayMode', 'setFontFamily', 'setFontFamilyCjk', 'setLyricsFontFamily', 'setLyricsFontFamilyCjk', 'setLyrics3dFontFamily', 'setLyrics3dFontFamilyCjk', 'setPerformance', 'applyPerformancePreset', 'setMiniPlayerEnabled', 'setMiniPlayerWidth', 'setMiniPlayerAppearance'],
   providers: ['setEnabled', 'setPlaybackOrder', 'setPreferOriginSource', 'setMultiSourceFallback', 'setSourceBadgeMode', 'setContentSource', 'setAccountState', 'setPlaybackAvailability'],
   lyrics: ['setOffsetSec', 'updateLayout', 'setDesktopLyricsEnabled'],
   lyricSources: ['queryCandidates', 'cancelSelection', 'chooseSource', 'setDefaultSource', 'clearRemembered', 'setSourceOrder', 'forgetTrack', 'updateRemembered', 'testSource'],
@@ -79,7 +86,8 @@ export const remoteActions: Record<string, readonly string[]> = {
   apple: ['refresh', 'connect', 'disconnect'],
   visual: ['setPreset', 'updateFx', 'setPerformanceMode', 'setBackgroundMode', 'loadArchive'],
   ambient: [], shortcuts: ['setRecording'],
-  navigation: ['navigateTo', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
+  navigation: ['navigateTo', 'openSearch', 'updateArtistPageState', 'updateSearchPageState', 'requestSettingsMusic', 'consumeSettingsMusicRequest', 'requestSettingsLyrics', 'consumeSettingsLyricsRequest', 'requestSettingsKaraoke', 'consumeSettingsKaraokeRequest', 'requestLibraryAccompaniments', 'consumeLibraryAccompanimentsRequest', 'goBack', 'goForward'],
   toast: ['show', 'dismiss'],
-  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'logout', 'expireAccount', 'cancelLyricsSelection'],
+  bilibiliCovers: ['request', 'remember', 'rememberIdentity', 'querySongCandidates', 'confirmSongCandidate'],
+  controls: ['shortcut', 'setShortcutBlocked', 'loginCookie', 'refreshKugouAccount', 'commitQishuiLogin', 'logout', 'expireAccount', 'cancelLyricsSelection'],
 }

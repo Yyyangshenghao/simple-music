@@ -7,7 +7,7 @@ import { accompanimentTrack } from './karaoke-library'
 
 /**
  * 本地音乐:扫描用户选择的文件夹,不接入在线音源的推荐/艺人/专辑体系(见 LibraryPage 的「本地」tab,
- * 扁平列表展示，不参与在线平台选择或 useLazyPlaylist。
+ * 本机歌曲与专辑分组展示，不参与在线平台选择或 useLazyPlaylist。
  */
 
 interface LocalTrackRaw {
@@ -15,6 +15,7 @@ interface LocalTrackRaw {
   name: string
   artist: string
   album?: string
+  albumArtist?: string | null
   duration?: number
   hasCover: boolean
   mtimeMs?: number
@@ -36,6 +37,7 @@ function toTrack(raw: LocalTrackRaw): Track {
     artist: raw.artist,
     artists: raw.artist ? [{ id: `local:${raw.artist}`, name: raw.artist }] : [],
     album: raw.album,
+    albumArtist: raw.albumArtist ?? undefined,
     cover: raw.hasCover ? api.url('/api/local/cover', { id: raw.id }) : undefined,
     duration: raw.duration,
     mtimeMs: raw.mtimeMs,

@@ -453,6 +453,14 @@ describe('酷狗逐字歌词兜底', () => {
     expect(await upgradeLyricsWithKugou(apple, base)).toBeNull()
   })
 
+  it('酷狗自己的歌曲按 hash 取词，KRC 署名与本曲文字不一致也不判错配', async () => {
+    reply([{ title: '晴天 (DJ版)', artist: '别人', duration: 180_000, text: krc }])
+    const kugou: Track = { ...apple, provider: 'kugou', source: 'kugou', id: '936bfc076ea0e42e62ea66b8377110d4' }
+    const result = await fetchLyrics(kugou)
+    expect(vi.mocked(api.get)).toHaveBeenCalledWith('/api/kugou/lyric', { title: '晴天', artist: '周杰伦', duration: '180000', hash: kugou.id }, { signal: undefined })
+    expect(result).toMatchObject({ source: 'kugou', origin: 'kugou', main: [{ time: 1, text: '甲乙' }] })
+  })
+
   it('补全链最后才查酷狗，已登录平台命中时不查', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => (path === '/api/kugou/lyric'
       ? { candidates: [{ title: '晴天', artist: '周杰伦', duration: 180_000, text: krc }] }
@@ -552,4 +560,11 @@ describe('游客歌词来源', () => {
     // 分级搜索可能多搜几次，但只有搜索请求，不会对错版本取词。
     expect(new Set(vi.mocked(api.get).mock.calls.map(([path]) => path))).toEqual(new Set(['/api/search', '/api/qq/search']))
   })
+})
+
+
+it('B 站系统取词可以显式强制游客，即使目标平台账号已登录', async () => {
+  useProviderStore.setState({ byId: { ...useProviderStore.getState().byId, netease: { enabled: true, auth: 'authenticated' } } })
+  await fetchLyrics(song('netease'), [], undefined, false, true, false, 'guest')
+  expect(api.get).toHaveBeenCalledWith('/api/lyric', expect.objectContaining({ guest: '1' }), expect.anything())
 })

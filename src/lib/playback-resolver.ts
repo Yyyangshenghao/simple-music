@@ -1,6 +1,6 @@
 import { providerFor } from '../providers/registry'
 import type { PlaybackCandidate, ProviderId, QualityOption } from '../providers/types'
-import { isProviderId, PlaybackUnavailableError } from '../providers/types'
+import { isFallbackOnlyProvider, isProviderId, PlaybackUnavailableError } from '../providers/types'
 import type { AudioQuality, Track } from '../types/domain'
 import { findEquivalentTrack, type TrackMatchResult } from './track-match'
 
@@ -80,6 +80,7 @@ export function buildPlaybackSourceOrder(
   const originSource = isProviderId(origin.source) ? origin.source : undefined
   const ordered = uniqueSources([
     preferences.preferredSource,
+    originSource === 'bilibili' ? originSource : undefined,
     preferences.preferOriginSource ? originSource : undefined,
     ...preferences.playbackOrder,
     !preferences.preferOriginSource ? originSource : undefined,
@@ -112,6 +113,8 @@ export class PlaybackResolver {
   readonly originTrack: Track
   readonly sourceOrder: ProviderId[]
   readonly attempts: PlaybackAttempt[] = []
+  /** 顺序里有兜底平台时，试听片段放到最后：先找完整音频，所有平台都没有才播试听。 */
+  readonly defersTrial: boolean
   failureMessage: string | null = null
 
   private readonly requestedQuality: AudioQuality
@@ -122,6 +125,8 @@ export class PlaybackResolver {
   private sourceIndex = 0
   private candidateAttempts = 0
   private currentCandidate: PlaybackCandidate | null = null
+  /** 试听片段先放一边：后面还有平台时优先找完整版本，都找不到再播试听。 */
+  private readonly deferredTrials: PlaybackCandidate[] = []
 
   constructor(
     originTrack: Track,
@@ -139,6 +144,7 @@ export class PlaybackResolver {
     }
     this.maxAttempts = Math.max(1, maxAttempts)
     this.sourceOrder = buildPlaybackSourceOrder(originTrack, preferences, this.deps.isParticipating)
+    this.defersTrial = this.sourceOrder.some(isFallbackOnlyProvider)
     this.sourceStates = this.sourceOrder.map((source) => ({
       source,
       qualities: [requestedQuality],
@@ -226,7 +232,7 @@ export class PlaybackResolver {
 
     while (!this.controller.signal.aborted && this.candidateAttempts < this.maxAttempts) {
       const state = this.sourceStates[this.sourceIndex]
-      if (!state) return null
+      if (!state) return this.takeDeferredTrial()
       if (!this.deps.isParticipating(state.source)) {
         this.sourceIndex++
         continue
@@ -269,6 +275,10 @@ export class PlaybackResolver {
       }
 
       const queued = state.candidateQueue.shift()
+      if (queued?.trial && this.sourceIndex < this.sourceStates.length - 1) {
+        this.deferredTrials.push(queued)
+        continue
+      }
       if (queued) {
         this.candidateAttempts++
         this.currentCandidate = queued
@@ -301,7 +311,10 @@ export class PlaybackResolver {
             stage: 'resolve',
             result: fresh.length > 0 ? 'success' : 'unavailable',
           })
-          state.candidateQueue.push(...fresh)
+          for (const candidate of fresh) {
+            if (this.defersTrial && candidate.trial) this.deferredTrials.push(candidate)
+            else state.candidateQueue.push(candidate)
+          }
           continue
         } catch (error) {
           if (isAbort(error) || this.controller.signal.aborted) return null
@@ -338,7 +351,15 @@ export class PlaybackResolver {
       }
       this.sourceIndex++
     }
-    return null
+    return this.controller.signal.aborted ? null : this.takeDeferredTrial()
+  }
+
+  private takeDeferredTrial(): PlaybackCandidate | null {
+    const trial = this.deferredTrials.shift()
+    if (!trial) return null
+    this.candidateAttempts++
+    this.currentCandidate = trial
+    return trial
   }
 
   complete(candidate: PlaybackCandidate): PlaybackResolution | null {

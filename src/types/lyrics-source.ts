@@ -1,12 +1,12 @@
 import type { MusicSource, Track } from './domain'
 
 export type LyricOrigin = MusicSource | 'amll' | 'kugou'
-export const LYRIC_PRIORITY_SOURCES = ['apple', 'netease', 'qq', 'amll', 'kugou'] as const
+export const LYRIC_PRIORITY_SOURCES = ['apple', 'netease', 'qq', 'amll', 'qishui', 'kugou'] as const
 export type LyricPrioritySource = typeof LYRIC_PRIORITY_SOURCES[number]
 export interface LyricSourceHealth { failures: number; suspended: boolean; cooldownMs?: number; retryAt?: number }
 export interface LyricSourceProbe { status: 'loading' | LyricCandidateStatus; ms?: number; message?: string; sample: string }
 
-export type LyricSourcePreference = 'auto' | 'origin' | Exclude<LyricOrigin, 'local' | 'apple'>
+export type LyricSourcePreference = 'auto' | 'origin' | Exclude<LyricOrigin, 'local' | 'apple' | 'qishui'>
 export type LyricCandidateStatus = 'idle' | 'loading' | 'ready' | 'empty' | 'mismatch' | 'error' | 'disabled' | 'login' | 'unavailable'
 
 export interface LyricPreviewLine {
@@ -33,23 +33,37 @@ export interface LyricSourceCandidate {
   romajiOrigin?: LyricOrigin
 }
 
+export const LYRIC_SEARCH_MAX_LENGTH = 120
+export interface LyricSearchInput { name: string; artist: string }
+
+export function normalizeLyricSearch(value: unknown): LyricSearchInput | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const { name, artist } = value as Partial<LyricSearchInput>
+  if (typeof name !== 'string' || typeof artist !== 'string') return undefined
+  const title = name.trim()
+  const singer = artist.trim()
+  if (!title || !singer || title.length > LYRIC_SEARCH_MAX_LENGTH || singer.length > LYRIC_SEARCH_MAX_LENGTH) return undefined
+  return { name: title, artist: singer }
+}
+
 export interface RememberedLyricSource {
   origin: LyricOrigin
   name: string
   artist: string
   /** 仅保存录音匹配所需字段，不持久化播放 URL 或凭证。 */
   match?: Track
+  search?: LyricSearchInput
 }
 
-export const LYRIC_ORIGINS: readonly LyricOrigin[] = ['netease', 'qq', 'apple', 'local', 'amll', 'kugou']
+export const LYRIC_ORIGINS: readonly LyricOrigin[] = ['netease', 'qq', 'apple', 'qishui', 'bilibili', 'local', 'amll', 'kugou']
 export const LYRIC_SOURCE_LABELS: Record<LyricOrigin | 'auto' | 'origin', string> = {
   auto: '自动选择', origin: '歌曲原平台', netease: '网易云音乐', qq: 'QQ 音乐',
-  apple: 'Apple Music', local: '本地歌词', amll: 'AMLL 逐字歌词库', kugou: '酷狗音乐',
+  apple: 'Apple Music', qishui: '汽水音乐', local: '本地歌词', amll: 'AMLL 逐字歌词库', kugou: '酷狗音乐', bilibili: '哔哩哔哩',
 }
 
 export interface LyricSourceActions {
   testSource(origin: LyricPrioritySource, sample: string): Promise<void>
-  queryCandidates(trackKey: string, token: string, origin?: LyricOrigin): Promise<void>
+  queryCandidates(trackKey: string, token: string, origin?: LyricOrigin, search?: LyricSearchInput | null): Promise<void>
   cancelSelection(token: string): void
   chooseSource(trackKey: string, token: string, origin: LyricOrigin | 'auto', remember: boolean): Promise<{ saved: boolean; offsetReset: boolean }>
 }

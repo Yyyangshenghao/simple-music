@@ -84,7 +84,9 @@ function buildCookieHeaderFor(cookies: Cookie[], allowed: (domain: string) => bo
 async function readQQCookie(s: Session): Promise<string> {
   return buildCookieHeaderFor(await s.cookies.get({}), isQQCookieDomain, QQ_COOKIE_PRIORITY)
 }
-async function readNeteaseCookie(s: Session): Promise<string> {
+export const NETEASE_PARTITION = NETEASE_LOGIN_PARTITION
+export { neteaseCookieHasLogin }
+export async function readNeteaseCookie(s: Session): Promise<string> {
   return buildCookieHeaderFor(await s.cookies.get({}), isNeteaseCookieDomain, NETEASE_COOKIE_PRIORITY)
 }
 

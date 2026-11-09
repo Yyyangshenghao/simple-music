@@ -4,6 +4,7 @@ import { TrackActionLayer } from './TrackActionLayer'
 import { AddToPlaylistDialog } from './AddToPlaylistDialog'
 import { useTrackActionsStore } from '../../stores/track-actions'
 import type { Track } from '../../types/domain'
+import { useNavigationStore } from '../../stores/navigation'
 
 const h = vi.hoisted(() => ({ resolve: vi.fn() }))
 vi.mock('react-dom', () => ({ createPortal: (children: ReactNode) => children }))
@@ -26,6 +27,20 @@ function dialog(): ReactElement<DialogProps> {
 describe('单曲加入歌单', () => {
   beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal('document', { body: {} }) })
   afterEach(() => { useTrackActionsStore.getState().close(); vi.unstubAllGlobals() })
+
+  it.each(['netease', 'qq'] as const)('%s 歌曲从共享右键菜单打开自身来源的评论并关闭菜单', source => {
+    const song = { ...track, source, provider: source }
+    useTrackActionsStore.getState().openMenu(song, anchor)
+    const layer = TrackActionLayer() as ReactElement<{ children: ReactNode }>
+    const context = Children.toArray(layer.props.children).find(child => isValidElement(child)) as ReactElement<Record<string, unknown>>
+    const floating = (context.type as (props: Record<string, unknown>) => ReactElement<{ children: ReactNode }>)(context.props)
+    const menu = Children.toArray(floating.props.children)[0] as ReactElement<{ children: ReactNode }>
+    const comment = Children.toArray(menu.props.children).find(child => isValidElement<{ children: ReactNode }>(child) && Children.toArray(child.props.children).includes('查看评论')) as ReactElement<{ onClick(): void }>
+    expect(comment).toBeDefined()
+    comment.props.onClick()
+    expect(useTrackActionsStore.getState().menu).toBeNull()
+    expect(useNavigationStore.getState().currentView).toEqual({ type: 'song-comments', track: song })
+  })
 
   it('与多选共用统一的加入歌单弹窗，并以歌名与歌手作上下文', async () => {
     useTrackActionsStore.getState().openQuickAdd(track, anchor)

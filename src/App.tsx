@@ -33,6 +33,7 @@ import { LyricsPanel } from './components/Lyrics/LyricsPanel'
 import { LyricsSourceDialog } from './components/Lyrics/LyricsSourceDialog'
 import { useLyricsSourceDialogStore } from './stores/lyrics-source-dialog'
 import { Toast } from './components/ui/Toast'
+import { QrLoginDialog } from './components/Settings/QrLoginDialog'
 import { TrackActionLayer } from './components/Playlist/TrackActionLayer'
 import { UpdateBanner } from './components/Update/UpdateBanner'
 
@@ -174,6 +175,7 @@ export default function App() {
           <LyricsPanel open={lyricsOpen} controlsHidden={controlsHidden} onClose={() => setLyricsOpen(false)} />
           <LyricsSourceDialog />
           <TrackActionLayer />
+          <QrLoginDialog />
           <Toast />
           <UpdateBanner />
         </div>

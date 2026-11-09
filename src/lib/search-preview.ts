@@ -2,10 +2,10 @@
 
 export type SearchPreviewKind = 'songs' | 'artists' | 'albums' | 'playlists'
 
-/** 「全部」视图每类预览数量：歌曲约一屏，歌手、专辑与歌单在宽窗口约一行。 */
+/** 「全部」先并排预览歌曲与歌手，专辑与歌单各预览一组封面。 */
 export const SEARCH_PREVIEW_LIMITS: Record<SearchPreviewKind, number> = {
-  songs: 10,
-  artists: 5,
+  songs: 5,
+  artists: 4,
   albums: 6,
   playlists: 6,
 }

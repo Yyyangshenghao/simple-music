@@ -5,13 +5,13 @@ import { useProviderStore } from '../../stores/providers'
 import { useAppleMusicConnection } from '../../stores/apple-music-connection'
 import { useToastStore } from '../../stores/toast'
 import { useNavigationStore } from '../../stores/navigation'
-import { loginMusicProvider } from '../../lib/provider-login'
 import { logoutMusicProvider } from '../../lib/provider-logout'
-import type { ProviderId } from '../../providers/types'
+import { isGuestLoginProvider, type ProviderId } from '../../providers/types'
+import { useQrLoginDialog } from '../Settings/QrLoginDialog'
 import { listProviders } from '../../providers/registry'
 import { springSnappy, tapScale } from '../../lib/motion-presets'
 import { SourceName } from '../ui/SourceName'
-import { AppleMusicIcon, NeteaseLogo, QQMusicLogo } from '../ui/brand-logos'
+import { AppleMusicIcon, KugouLogo, NeteaseLogo, QQMusicLogo, QishuiLogo } from '../ui/brand-logos'
 import { Switch } from '../ui/Switch'
 import styles from './AvatarMenu.module.css'
 import { useFeedback } from '../../hooks/useMotion'
@@ -23,6 +23,8 @@ interface AvatarMenuProps {
 function ProviderMark({ source }: { source: ProviderId }) {
   if (source === 'netease') return <NeteaseLogo />
   if (source === 'qq') return <QQMusicLogo />
+  if (source === 'kugou') return <KugouLogo />
+  if (source === 'qishui') return <QishuiLogo />
   return <AppleMusicIcon />
 }
 
@@ -39,14 +41,18 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
   const [busySource, setBusySource] = useState<ProviderId | null>(null)
 
   async function login(source: ProviderId): Promise<void> {
+    if (source === 'kugou' || source === 'qishui' || source === 'netease' || source === 'qq') {
+      // 应用内扫码：浮层自己管理进度，菜单先收起让出视线。
+      useQrLoginDialog.getState().show(source)
+      onClose()
+      return
+    }
     setBusySource(source)
     try {
       if (source === 'apple') {
         await useAppleMusicConnection.getState().connect()
         const connection = useAppleMusicConnection.getState()
         if (connection.error) useToastStore.getState().show(connection.message)
-      } else {
-        await loginMusicProvider(source)
       }
     } catch {
       useToastStore.getState().show('登录失败，请重试')
@@ -62,7 +68,7 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         await useAppleMusicConnection.getState().disconnect()
         const connection = useAppleMusicConnection.getState()
         if (connection.error) useToastStore.getState().show(connection.message)
-      } else {
+      } else if (source !== 'bilibili') {
         await logoutMusicProvider(source)
       }
     } catch {
@@ -104,16 +110,21 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
         <div className={styles.providerList}>
           {providers.map((provider) => {
             const source = provider.descriptor.id
-            const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : qqLoggedIn
+            // 兜底平台没有账号，只在设置的播放偏好里开关。
+            if (source === 'bilibili') return null
             const state = runtime[source]
+            const guestLogin = isGuestLoginProvider(source)
+            // 酷狗和汽水不登录也有游客会话：开关看会话，账号按钮看是否登录了账号。
+            const loggedIn = source === 'apple' ? runtime.apple.auth === 'authenticated' : source === 'netease' ? neteaseLoggedIn : source === 'qq' ? qqLoggedIn : guestLogin
+            const accountIn = guestLogin ? !!state.accountLinked : loggedIn
             const waiting = source === 'apple' && apple.phase === 'waiting'
             // 重新启用 Apple 时后台页面需要几秒静默重连；平台关着时页面已销毁，只保留登录。
             const reconnecting = source === 'apple' && !!apple.account?.restoring
             const processing = busySource === source || reconnecting || (source === 'apple' && ['opening', 'disconnecting'].includes(apple.phase))
             const accountLabel = reconnecting ? '连接中' : waiting && !loggedIn ? '等待授权' : loggedIn
-              ? source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
+              ? guestLogin && !accountIn ? '游客' : source === 'apple' ? apple.account?.suspended ? '已登录' : '已连接' : state.profile?.nickname || '已连接'
               : '未登录'
-            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : '已登录，未启用'
+            const statusLabel = !loggedIn ? '未登录' : state.enabled ? '已启用' : guestLogin && !accountIn ? '未启用' : '已登录，未启用'
             return (
               <section className={styles.providerRow} key={source} aria-label={provider.descriptor.label}>
                 <span className={styles.providerMark} aria-hidden="true"><ProviderMark source={source} /></span>
@@ -138,14 +149,14 @@ export function AvatarMenu({ onClose }: AvatarMenuProps) {
                     type="button"
                     className={styles.accountButton}
                     disabled={busySource !== null || processing}
-                    onClick={() => void (loggedIn || waiting ? logout(source) : login(source))}
-                    aria-label={`${processing ? '正在处理' : waiting ? '取消登录' : loggedIn ? '退出' : '登录'}${provider.descriptor.label}`}
-                    title={processing ? '处理中…' : waiting ? '取消登录' : loggedIn ? '退出登录' : '登录账号'}
+                    onClick={() => void (accountIn || waiting ? logout(source) : login(source))}
+                    aria-label={`${processing ? '正在处理' : waiting ? '取消登录' : accountIn ? '退出' : '登录'}${provider.descriptor.label}`}
+                    title={processing ? '处理中…' : waiting ? '取消登录' : accountIn ? '退出登录' : '登录账号'}
                   >
                     {processing ? <span className={styles.spinner} aria-hidden="true" /> : (
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M13 5h5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-5" />
-                        {loggedIn || waiting ? <path d="m8 8-4 4 4 4M4 12h12" /> : <path d="m12 8 4 4-4 4M16 12H4" />}
+                        {accountIn || waiting ? <path d="m8 8-4 4 4 4M4 12h12" /> : <path d="m12 8 4 4-4 4M16 12H4" />}
                       </svg>
                     )}
                   </button>

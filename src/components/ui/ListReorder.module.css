@@ -1,0 +1,22 @@
+/* 拖起的行：浮在列表上方，逐帧位置由 useListReorder 直接写 transform */
+.ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  /* 以行首的顺序圆点为中心放大与倾斜，浮起时圆点仍压在左侧顺序线上。 */
+  transform-origin: calc(var(--rank-size, 20px) / 2) 50%;
+  will-change: transform;
+}
+
+.ghost:empty { display: none; }
+
+.ghost > * {
+  background: var(--sm-bg-elevated);
+  box-shadow: var(--sm-shadow), inset 0 0 0 1px var(--sm-border);
+  cursor: grabbing;
+}

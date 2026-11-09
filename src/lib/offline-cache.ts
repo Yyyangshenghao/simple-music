@@ -1,15 +1,22 @@
 import type { Track } from '../types/domain'
 import { api } from './api'
 
+/** 经音频代理播放、可进播放缓存与下载的在线来源；Apple 受保护音频与本地文件不在其中。 */
+export type CacheableSource = 'netease' | 'qq' | 'kugou'
+
+export function isCacheableSource(source: unknown): source is CacheableSource {
+  return source === 'netease' || source === 'qq' || source === 'kugou'
+}
+
 /** downloaded：下载目录里有这首歌的文件；cached：播放器有自动缓存（界面不单独展示）。 */
 export type OfflineCacheState = 'missing' | 'cached' | 'downloaded'
 
 export interface OfflineCacheStatus {
-  source: 'netease' | 'qq'
+  source: CacheableSource
   id: string
   state: OfflineCacheState
   entryId?: string
-  resolved?: { source: 'netease' | 'qq'; id: string; name?: string; artist?: string }
+  resolved?: { source: CacheableSource; id: string; name?: string; artist?: string }
   quality?: string
   size?: number
   savedAt?: number
@@ -43,7 +50,7 @@ export function offlineFileUrl(status: OfflineCacheStatus, track: Track): string
 
 export async function fetchOfflineStatuses(tracks: Track[], signal?: AbortSignal): Promise<OfflineCacheStatus[]> {
   const refs = [...new Map(tracks.flatMap((track) => (
-    track.source === 'netease' || track.source === 'qq'
+    isCacheableSource(track.source)
       ? [[offlineTrackKey(track), { source: track.source, id: String(track.id) }] as const]
       : []
   ))).values()]
@@ -63,5 +70,5 @@ export async function fetchOfflineStatuses(tracks: Track[], signal?: AbortSignal
 
 export async function fetchOfflineStatus(track: Track, signal?: AbortSignal): Promise<OfflineCacheStatus> {
   const [status] = await fetchOfflineStatuses([track], signal)
-  return status ?? { source: track.source as 'netease' | 'qq', id: String(track.id), state: 'missing' }
+  return status ?? { source: track.source as CacheableSource, id: String(track.id), state: 'missing' }
 }

@@ -18,11 +18,12 @@
 /* 玻璃胶囊返回按钮:毛玻璃底 + 顶部内侧高光模拟边缘打光,hover 时箭头向左轻移引导方向 */
 .backBtn { margin-bottom: 14px; }
 
-.detailMeta { display: flex; align-items: stretch; gap: 28px; }
+.detailMeta { display: flex; align-items: stretch; gap: clamp(16px, 3vw, 36px); }
 
 .detailCover {
   position: relative;
-  width: clamp(160px, 22vw, 240px);
+  width: clamp(144px, 18vw, 224px);
+  align-self: flex-start;
   aspect-ratio: 1;
   border-radius: 16px;
   flex-shrink: 0;
@@ -30,7 +31,7 @@
   box-shadow: var(--sm-shadow);
 }
 
-.detailTitle { font-size: 28px; font-weight: 700; line-height: 1.25; margin: 0 0 6px; color: var(--sm-text-primary); }
+.detailTitle { font-size: clamp(24px, 2.7vw, 38px); font-weight: 720; line-height: 1.2; letter-spacing: -.025em; margin: 0 0 9px; color: var(--sm-text-primary); }
 .detailSub { font-size: 13px; color: var(--sm-text-secondary); margin: 10px 0 0; }
 .refreshBtn {
   margin-top: 8px;
@@ -140,9 +141,11 @@
   transition: background 160ms, color 160ms, opacity 160ms;
 }
 .playAllBtn { border: none; background: var(--sm-accent); color: var(--sm-text-on-accent); }
-.playAllBtn:hover:not(:disabled) { background: color-mix(in srgb, var(--sm-accent) 88%, black); }
+.playAllBtn:hover:not(:disabled) { background: var(--sm-accent-hover); }
 .shuffleBtn { border: 1px solid var(--sm-border); background: var(--sm-bg-elevated); color: var(--sm-text-primary); }
+.playAllBtn:active:not(:disabled) { background: var(--sm-accent-pressed); }
 .shuffleBtn:hover:not(:disabled) { background: var(--sm-fill-hover); }
+.shuffleBtn:active:not(:disabled) { background: var(--sm-fill-active); }
 .playAllBtn:disabled, .shuffleBtn:disabled { opacity: .5; cursor: default; }
 .playAllBtn:focus-visible, .shuffleBtn:focus-visible { outline: 2px solid var(--sm-accent); outline-offset: 3px; }
 .titleRow { display: flex; align-items: flex-start; gap: 16px; }
@@ -163,6 +166,9 @@
   .detailMeta { align-items: flex-start; gap: 16px; }
   .detailTitle { font-size: 22px; }
   .detailCover { width: 144px; }
+}
+@media (max-height: 680px) {
+  .detailDescription { -webkit-line-clamp: 2; }
 }
 @media (max-width: 480px) {
   .detailMeta { flex-direction: column; }

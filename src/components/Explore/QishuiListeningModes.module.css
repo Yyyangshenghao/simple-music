@@ -1,0 +1,211 @@
+.captionFailed { color: var(--sm-accent); }
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 148px), 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.tile,
+.chip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.tile {
+  min-height: 52px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--sm-border);
+  transition: background-color 150ms var(--sm-ease-out), box-shadow 150ms var(--sm-ease-out), opacity 150ms var(--sm-ease-out);
+}
+
+.tile:hover { background-color: var(--sm-fill-hover); }
+.tile:active { background-color: var(--sm-fill-active); }
+.tile[aria-pressed='true'] { box-shadow: none; font-weight: 600; }
+
+/* 选中高亮是同一个元素，在模式之间滑动过去。 */
+.indicator {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--sm-accent) 12%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sm-accent) 62%, transparent);
+  pointer-events: none;
+}
+
+.tile > :not(.indicator),
+.chip > * { position: relative; z-index: 1; }
+
+.label { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.icon {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  color: var(--sm-text-primary);
+}
+
+.glyph { display: grid; place-items: center; width: 100%; height: 100%; transition: opacity 120ms var(--sm-ease-out); }
+.glyph img { display: block; width: 100%; height: 100%; object-fit: contain; }
+/* 上游图标是白色的。跟随系统时根节点没有 data-theme，要单独判断系统浅色。 */
+:global([data-theme='light']) .glyph img { filter: brightness(0) opacity(.82); }
+@media (prefers-color-scheme: light) {
+  :global(:root:not([data-theme='dark'])) .glyph img { filter: brightness(0) opacity(.82); }
+}
+
+.playGlyph { position: absolute; color: var(--sm-accent); opacity: 0; transition: opacity 120ms var(--sm-ease-out); }
+:is(.tile, .chip):hover .glyph { opacity: 0; }
+:is(.tile, .chip):hover .playGlyph { opacity: 1; }
+.row[data-dragging] .glyph { opacity: 1; }
+.row[data-dragging] .playGlyph { opacity: 0; }
+
+.spinner {
+  width: 17px;
+  height: 17px;
+  border: 2px solid color-mix(in srgb, var(--sm-accent) 25%, transparent);
+  border-top-color: var(--sm-accent);
+  border-radius: 50%;
+  animation: spin 720ms linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.more { color: var(--sm-text-secondary); }
+.more .icon { color: inherit; }
+.more[aria-pressed='true'] { color: var(--sm-text-primary); }
+.chevron { flex: none; transition: transform 160ms var(--sm-ease-out); }
+.more[aria-expanded='true'] .chevron { transform: rotate(180deg); }
+
+.tile[data-placeholder] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sm-accent) 45%, transparent);
+  opacity: .45;
+}
+
+.emptySlot {
+  min-height: 52px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--sm-border);
+  opacity: .6;
+}
+
+.ghost {
+  position: fixed;
+  z-index: 300;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 168px;
+  min-height: 52px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sm-bg-base) 72%, transparent);
+  backdrop-filter: blur(24px) saturate(150%);
+  -webkit-backdrop-filter: blur(24px) saturate(150%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .24);
+  color: var(--sm-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.tray {
+  position: fixed;
+  z-index: 220;
+  display: flex;
+  flex-direction: column;
+  max-height: 340px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--sm-bg-base) 62%, transparent);
+  backdrop-filter: blur(36px) saturate(160%);
+  -webkit-backdrop-filter: blur(36px) saturate(160%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .28);
+  animation: trayIn 160ms var(--sm-ease-out);
+  transition: box-shadow 150ms var(--sm-ease-out);
+}
+
+.tray[data-drop-active] { box-shadow: 0 18px 48px rgba(0, 0, 0, .28), inset 0 0 0 1.5px color-mix(in srgb, var(--sm-accent) 62%, transparent); }
+
+@keyframes trayIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.trayHeader {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 8px 16px;
+}
+
+.trayHeader p { margin: 0; color: var(--sm-text-secondary); font-size: 12px; }
+
+.search {
+  width: 132px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--sm-fill-subtle);
+  color: var(--sm-text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.search::placeholder { color: var(--sm-text-secondary); }
+
+.trayGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 124px), 1fr));
+  gap: 2px;
+  min-height: 0;
+  padding: 0 8px 18px;
+  overflow-y: auto;
+  border-radius: 0 0 20px 20px;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent);
+}
+
+.chip {
+  min-height: 42px;
+  padding: 3px 8px 3px 4px;
+  border-radius: 10px;
+  transition: background-color 150ms var(--sm-ease-out), opacity 150ms var(--sm-ease-out);
+}
+
+.chip:hover { background-color: var(--sm-fill-hover); }
+.chip:active { background-color: var(--sm-fill-active); }
+.chip[aria-pressed='true'] { font-weight: 600; }
+.chip[data-placeholder] { background: transparent; opacity: .35; }
+
+.trayEmpty { margin: 0; padding: 18px 16px 22px; color: var(--sm-text-secondary); font-size: 13px; text-align: center; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tile, .chip, .tray, .glyph, .playGlyph, .chevron { transition: none; animation: none; }
+  .spinner { animation-duration: 1.6s; }
+}

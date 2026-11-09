@@ -17,7 +17,7 @@ const INDEX_MARKER_FILE = 'audio-cache-index-v1.marker'
 const INDEX_SCHEMA = 1
 const MAX_TEMP_ORIGINS = 8
 
-type OnlineSource = 'netease' | 'qq'
+type OnlineSource = 'netease' | 'qq' | 'kugou'
 
 export interface AudioCacheConfig {
   dir: string
@@ -122,7 +122,7 @@ function emptyIndex(): AudioCacheIndexV1 {
 }
 
 function isOnlineSource(value: unknown): value is OnlineSource {
-  return value === 'netease' || value === 'qq'
+  return value === 'netease' || value === 'qq' || value === 'kugou'
 }
 
 function cleanText(value: unknown): string | undefined {

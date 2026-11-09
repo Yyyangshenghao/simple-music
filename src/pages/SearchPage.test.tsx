@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SearchPage } from './SearchPage'
+import { bilibiliTrackDisplay, withBilibiliDisplayReading } from '../lib/bilibili-track-display'
 import { useProviderStore } from '../stores/providers'
 import { useNavigationStore } from '../stores/navigation'
+import type { Track } from '../types/domain'
 
 vi.mock('../stores/providers', async (importOriginal) => {
   const original = await importOriginal<typeof import('../stores/providers')>()
@@ -12,12 +14,51 @@ vi.mock('../stores/providers', async (importOriginal) => {
   ) }
 })
 
+describe('哔哩哔哩搜索结果展示', () => {
+  const video = (name: string): Track => ({
+    source: 'bilibili', provider: 'bilibili', type: 'song', id: 'BV1BZbSzZEGT',
+    name, artist: '上传者', artists: [], videoTitle: name,
+  })
+
+  it('主展示歌名和歌手，视频原题作为辅助文字', () => {
+    const original = '【4K修复】周杰伦《晴天》'
+    expect(bilibiliTrackDisplay(video(original))).toEqual({
+      name: '晴天', artist: '周杰伦', caption: original,
+    })
+  })
+
+  it('使用已加载的曲库结果区分横线两侧的歌名和歌手', () => {
+    const reference: Track = { ...video('晴天'), source: 'netease', provider: 'netease', artist: '周杰伦', duration: 269000 }
+    for (const original of ['周杰伦 - 晴天', '晴天 - 周杰伦']) {
+      expect(bilibiliTrackDisplay(withBilibiliDisplayReading({ ...video(original), duration: 269000 }, [reference])))
+        .toMatchObject({ name: '晴天', artist: '周杰伦' })
+    }
+  })
+
+  it('播放伴奏时识别歌名与歌手，伴奏说明保留在原题', () => {
+    const original = '【高质量伴奏】《茉茉》 - Nzwin 黄跃成（和声伴奏）'
+    expect(bilibiliTrackDisplay(video(original))).toEqual({ name: '茉茉', artist: 'Nzwin 黄跃成', caption: original })
+  })
+
+  it('翻唱标题里的原歌手和循环标签不显示为演唱者', () => {
+    for (const title of ['周杰伦《晴天》女声完整版', '循环歌曲《晴天》']) {
+      expect(bilibiliTrackDisplay(video(title))).toMatchObject({ name: '晴天', artist: 'UP 主 · 上传者' })
+    }
+  })
+
+  it('无法确认时显示原题，上传者明确标为 UP 主', () => {
+    expect(bilibiliTrackDisplay(video('周杰伦 - 晴天'))).toEqual({
+      name: '周杰伦 - 晴天', artist: 'UP 主 · 上传者', caption: undefined,
+    })
+  })
+})
+
 describe('聚合搜索页面', () => {
   beforeEach(() => {
     useProviderStore.setState({ byId: {
       netease: { enabled: true, auth: 'authenticated' },
       qq: { enabled: true, auth: 'authenticated' },
-      apple: { enabled: false, auth: 'anonymous' },
+      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
     useNavigationStore.setState({ currentView: 'explore', history: [], future: [] })
   })
@@ -25,35 +66,71 @@ describe('聚合搜索页面', () => {
   it('默认聚合已启用且已登录的平台，首屏提供独立加载提示', () => {
     const html = renderToStaticMarkup(<SearchPage keyword="周杰伦" />)
     expect(html).not.toContain('个音乐平台中发现')
-    expect(html.match(/<h2>.*?<\/h2>/g)).toEqual(['<h2>歌手</h2>', '<h2>歌曲</h2>', '<h2>专辑</h2>', '<h2>歌单</h2>'])
     expect(html).toContain('全部平台')
-    expect(html).toContain('专辑搜索结果')
-    expect(html).toContain('歌单搜索结果')
+    expect(html).toContain('正在搜索各平台…')
+    expect(html).toContain('value="周杰伦"')
     expect(html).not.toContain('aria-label="多选操作"')
     expect(html).not.toContain('>多选</button>')
     expect(html).not.toContain('role="checkbox"')
     expect(html).not.toContain('悬停勾选')
-    expect(html).toContain('歌曲搜索结果更多操作')
-    expect(html).toContain('专辑搜索结果更多操作')
-    expect(html).toContain('歌单搜索结果更多操作')
     expect(html).toContain('网易云')
     expect(html).toContain('QQ音乐')
     expect(html).not.toContain('Apple Music')
-    expect(html).toContain('正在寻找相关歌手')
-    expect(html).toContain('正在搜索各平台的歌曲')
+    expect(html).not.toContain('哔哩哔哩')
     expect(html).not.toContain('没有找到相关歌曲')
+  })
+
+  it('空搜索页展示输入入口，不显示结果筛选和加载状态', () => {
+    const html = renderToStaticMarkup(<SearchPage keyword="" />)
+    expect(html).toContain('aria-label="搜索音乐"')
+    expect(html).not.toContain('筛选搜索')
+    expect(html).not.toContain('正在搜索')
+  })
+
+  it('首页同时展示已启用且提供热搜的平台，与当前内容平台和账号状态无关', () => {
+    const { byId } = useProviderStore.getState()
+    useProviderStore.setState({ contentSource: 'netease', byId: {
+      ...byId,
+      qq: { enabled: true, auth: 'expired' },
+      apple: { enabled: true, auth: 'authenticated' },
+      kugou: { enabled: true, auth: 'authenticated' },
+      qishui: { enabled: true, auth: 'authenticated' },
+      bilibili: { enabled: true, auth: 'anonymous' },
+    } })
+
+    const home = renderToStaticMarkup(<SearchPage keyword="" />)
+    for (const source of ['网易云', 'QQ音乐', '酷狗音乐']) {
+      expect(home).toContain(`aria-label="${source}热搜"`)
+    }
+    for (const source of ['Apple Music', '汽水音乐', '哔哩哔哩']) {
+      expect(home).not.toContain(`aria-label="${source}热搜"`)
+    }
+
+    useProviderStore.setState(state => ({ byId: { ...state.byId, qq: { ...state.byId.qq, enabled: false } } }))
+    expect(renderToStaticMarkup(<SearchPage keyword="" />)).not.toContain('aria-label="QQ音乐热搜"')
+    expect(renderToStaticMarkup(<SearchPage keyword="晴天" />)).not.toContain('热搜"')
   })
 
   it('无可用平台时引导设置，不显示误导的无结果或加载状态', () => {
     useProviderStore.setState({ byId: {
       netease: { enabled: false, auth: 'authenticated' },
       qq: { enabled: true, auth: 'expired' },
-      apple: { enabled: true, auth: 'anonymous' },
+      apple: { enabled: true, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
     } })
     const html = renderToStaticMarkup(<SearchPage keyword="晴天" />)
-    expect(html).toContain('请先登录并启用至少一个音乐平台')
+    expect(html).toContain('请在设置中启用音源，部分平台需要先登录')
     expect(html).toContain('前往设置')
     expect(html).not.toContain('搜索中')
+  })
+
+  it('已启用的哔哩哔哩游客音源只展示歌曲搜索', () => {
+    const { byId } = useProviderStore.getState()
+    useProviderStore.setState({ byId: { ...byId, bilibili: { enabled: true, auth: 'anonymous' } } })
+    const html = renderToStaticMarkup(<SearchPage keyword="晴天" initialState={{ category: 'artists', sourceFilter: 'bilibili', scrollTop: 0 }} />)
+    expect(html).toContain('哔哩哔哩')
+    expect(html).not.toContain('实验性')
+    expect(html).toContain('aria-label="歌曲搜索结果"')
+    expect(html).not.toContain('aria-label="歌手搜索结果"')
   })
 
   it('搜索词作为文本显示', () => {

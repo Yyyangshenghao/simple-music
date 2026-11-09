@@ -7,7 +7,7 @@ vi.mock('./api', () => ({ api: { url: (path: string, params: { id: string }) => 
 const song = (source: Track['source'], id = '1'): Track => ({ provider: source, source, type: 'song', id, name: '歌曲', artist: '', artists: [] })
 function context(): AppPlaylistPlaybackContext {
   return { providers: {
-    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'expired' }, apple: { enabled: false, auth: 'anonymous' },
+    netease: { enabled: true, auth: 'authenticated' }, qq: { enabled: false, auth: 'expired' }, apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' },
   }, localTracks: new Map([['1', { ...song('local'), name: '当前文件', cover: 'local-cover' }]]), offline: {} }
 }
 
@@ -38,6 +38,13 @@ describe('应用歌单播放边界', () => {
     ctx.providers.apple.playbackAvailable = false
     expect(appPlaylistTrackState(song('apple'), ctx).available).toBe(false)
     expect(appPlaylistTrackState({ ...song('netease'), playable: false }, ctx)).toMatchObject({ status: '曲目暂不可用', invalid: true })
+  })
+  it('已启用的哔哩哔哩条目无需登录即可从应用歌单起播', () => {
+    const ctx = context()
+    const track = song('bilibili', 'BV1BZbSzZEGT')
+    expect(appPlaylistTrackState(track, ctx).status).toBe('平台已停用')
+    ctx.providers.bilibili.enabled = true
+    expect(appPlaylistPlaybackTracks([track], ctx)).toEqual([track])
   })
   it('QQ 的 playable=false 只表示尚未解析地址，登录可用时照常播放且不算失效', () => {
     const ctx = context()

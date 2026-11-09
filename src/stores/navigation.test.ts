@@ -48,7 +48,33 @@ describe('歌手页导航状态', () => {
 })
 
 describe('搜索页导航状态', () => {
-  beforeEach(() => useNavigationStore.setState({ currentView: 'explore', history: [], future: [] }))
+  beforeEach(() => useNavigationStore.setState({ currentView: 'explore', history: [], future: [], lastSearchView: null }))
+
+  it('从主导航打开搜索，离开后恢复最近一次结果的分类与位置', () => {
+    const nav = useNavigationStore.getState()
+    nav.openSearch()
+    expect(useNavigationStore.getState().currentView).toEqual({ type: 'search', keyword: '', focusInput: true })
+    nav.openSearch()
+    expect(useNavigationStore.getState().history).toEqual(['explore'])
+    nav.navigateTo({ type: 'search', keyword: '晴天' })
+    const pageState = { category: 'songs' as const, sourceFilter: 'qq' as const, scrollTop: 280 }
+    nav.updateSearchPageState('晴天', pageState)
+    nav.navigateTo('library')
+    nav.openSearch()
+    expect(useNavigationStore.getState().currentView).toMatchObject({ keyword: '晴天', pageState, focusInput: false })
+    nav.goBack()
+    expect(useNavigationStore.getState().currentView).toBe('library')
+  })
+
+  it('从应用歌单进入已浏览的搜索页时请求聚焦，后退回歌单', () => {
+    const nav = useNavigationStore.getState()
+    nav.navigateTo({ type: 'search', keyword: '晴天' })
+    nav.navigateTo({ type: 'app-playlist', id: 'my-playlist' })
+    nav.openSearch(true)
+    expect(useNavigationStore.getState().currentView).toMatchObject({ type: 'search', keyword: '晴天', focusInput: true })
+    nav.goBack()
+    expect(useNavigationStore.getState().currentView).toEqual({ type: 'app-playlist', id: 'my-playlist' })
+  })
 
   it.each(['artist', 'album', 'playlist'] as const)('从 %s 返回时恢复搜索筛选和位置，前进后再次返回仍保留', (kind) => {
     const nav = useNavigationStore.getState()

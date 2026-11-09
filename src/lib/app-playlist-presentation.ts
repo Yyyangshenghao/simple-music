@@ -2,7 +2,7 @@ import type { MusicSource, Track } from '../types/domain'
 import { normalizeImageUrl } from './image-size'
 import { restoreLocalTrackUrls } from './local-track-urls'
 
-const SOURCES: MusicSource[] = ['netease', 'qq', 'apple', 'local']
+const SOURCES: MusicSource[] = ['netease', 'qq', 'apple', 'kugou', 'bilibili', 'local']
 
 export function appPlaylistSources(tracks: Track[]): { source: MusicSource; count: number }[] {
   const counts = new Map<MusicSource, number>()
@@ -13,11 +13,12 @@ export function appPlaylistSources(tracks: Track[]): { source: MusicSource; coun
   })
 }
 
-export function appPlaylistCovers(tracks: Track[]): { source: MusicSource; url: string }[] {
+/** coverOf 可替换非本地曲目的展示封面（如哔哩哔哩的专辑封面）。 */
+export function appPlaylistCovers(tracks: Track[], coverOf: (track: Track) => unknown = track => track.cover): { source: MusicSource; url: string }[] {
   const candidates = tracks.flatMap(track => {
     const url = track.source === 'local'
       ? restoreLocalTrackUrls(track).cover
-      : normalizeImageUrl(track.cover)
+      : normalizeImageUrl(coverOf(track))
     return url ? [{ source: track.source, url }] : []
   })
   const covers: { source: MusicSource; url: string }[] = []

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createFontListCache, normalizeFontFamilies, parseFontFamiliesJson } from './font-manager'
+import { createFontListCache, normalizeFontFamilies, parseFontFamiliesJson, parseFontconfigFamilies } from './font-manager'
 
 describe('font manager', () => {
   it('清理、去重并排序系统字体族', () => {
@@ -31,6 +31,20 @@ describe('font manager', () => {
       { family: 'HarmonyOS Sans SC', localizedName: '鸿蒙黑体' },
       { family: 'LXGW WenKai Mono', localizedName: '霞鹜文楷等宽' },
       { family: 'Microsoft YaHei', localizedName: '微软雅黑' }
+    ])
+  })
+
+  it('解析 fontconfig 输出：首个别名当族名，中文别名当本地化名', () => {
+    expect(parseFontconfigFamilies([
+      'JetBrainsMonoNL Nerd Font Mono,JetBrainsMonoNL NFM,JetBrainsMonoNL NFM ExtraLight',
+      'Noto Sans CJK SC,思源黑体',
+      'Sarasa Term Slab CL,Sarasa Term Slab CL Light',
+      'Noto Sans CJK SC,思源黑体',
+      ''
+    ].join('\n'))).toEqual([
+      { family: 'JetBrainsMonoNL Nerd Font Mono' },
+      { family: 'Noto Sans CJK SC', localizedName: '思源黑体' },
+      { family: 'Sarasa Term Slab CL' }
     ])
   })
 

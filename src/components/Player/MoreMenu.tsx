@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'motion/react'
 import { usePlayerStore } from '../../stores/player'
 import { useSleepTimerStore } from '../../stores/sleep-timer'
 import { useProviderStore } from '../../stores/providers'
-import { isProviderId } from '../../providers/types'
+import { isFallbackOnlyProvider, isProviderId } from '../../providers/types'
 import { SOURCE_BRAND } from '../../lib/source-brand'
 import { loadTrackQualities, peekTrackQualities, type TrackQualityOption } from '../../lib/track-qualities'
 import { tapScale, springSnappy, springGentle } from '../../lib/motion-presets'
@@ -20,6 +20,7 @@ import { useLyricsSourceLabel } from '../../hooks/useLyricsSourceLabel'
 import { useMotion } from '../../hooks/useMotion'
 import { useKaraokeModelsStore } from '../../stores/karaoke-models'
 import { useSettingsStore } from '../../stores/settings'
+import { supportsSongComments } from '../../lib/song-comments'
 import { openAccompanimentsLibrary, useNavigationStore } from '../../stores/navigation'
 import type { KaraokeModelId } from '../../types/karaoke'
 import { useTaskCenterStore } from '../../stores/task-center'
@@ -223,7 +224,7 @@ function QualitySection({ open }: { open: boolean }) {
   const currentSourceParticipating = useProviderStore((state) => {
     if (!qualityTrack || !isProviderId(qualityTrack.source)) return true
     const source = state.byId[qualityTrack.source]
-    return source.enabled && source.auth === 'authenticated'
+    return source.enabled && (source.auth === 'authenticated' || isFallbackOnlyProvider(qualityTrack.source))
   })
   // null = 检测中;[] = 无可选档(本地音乐/探测失败)。换曲时已预取过的直接用缓存
   const [options, setOptions] = useState<TrackQualityOption[] | null>(() => qualityTrack ? peekTrackQualities(qualityTrack) ?? null : null)
@@ -412,7 +413,7 @@ function SleepSection() {
   )
 }
 
-/** 换曲后延迟预取实际播放源的音质档位，打开「更多」时直接显示；快速切歌时只取最后停下的那首。 */
+/** QQ 换曲后延迟预取档位；网易逐档取链开销较高，仅在打开面板时探测。 */
 const QUALITY_PREFETCH_DELAY_MS = 1200
 
 function useQualityPrefetch() {
@@ -423,7 +424,7 @@ function useQualityPrefetch() {
     return source.enabled && source.auth === 'authenticated'
   })
   useEffect(() => {
-    if (!track || !participating || (track.source !== 'netease' && track.source !== 'qq') || peekTrackQualities(track)) return
+    if (!track || !participating || track.source !== 'qq' || peekTrackQualities(track)) return
     const timer = window.setTimeout(() => { void loadTrackQualities(track).catch(() => {}) }, QUALITY_PREFETCH_DELAY_MS)
     return () => window.clearTimeout(timer)
   }, [track, participating])
@@ -502,6 +503,7 @@ export function MoreMenu() {
   useQualityPrefetch()
   const rate = usePlayerStore((s) => s.rate)
   const generating = useKaraokeStore(s => s.jobs.some(job => job.phase !== 'failed'))
+  const track = usePlayerStore(state => state.currentTrack)
   const apple = usePlayerStore((s) => s.currentTrack?.source === 'apple')
   const trackKey = usePlayerStore((s) => s.currentTrack ? `${s.currentTrack.source}:${String(s.currentTrack.id)}` : null)
   const lyricsSourceLabel = useLyricsSourceLabel()
@@ -627,6 +629,15 @@ export function MoreMenu() {
                 <button type="button" className={`${styles.sectionHead} ${styles.headLink}`} onClick={() => { setOpen(false); useLyricsSourceDialogStore.getState().show() }}>
                   <span className={styles.sectionTitle}>歌词来源</span>
                   <span className={styles.textAction} title={lyricsSourceLabel}>{lyricsSourceLabel}<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></span>
+                </button>
+              </section>}
+              {track && supportsSongComments(track) && <section className={styles.section}>
+                <button type="button" className={`${styles.sectionHead} ${styles.headLink}`} onClick={() => {
+                  setOpen(false)
+                  useNavigationStore.getState().navigateTo({ type: 'song-comments', track })
+                }}>
+                  <span className={styles.sectionTitle}>歌曲评论</span>
+                  <span className={styles.textAction}><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6" /></svg></span>
                 </button>
               </section>}
               <OfflineSection open={open} />

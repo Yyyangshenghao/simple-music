@@ -1,7 +1,8 @@
 {
   "name": "simplemusic",
   "productName": "Simple Music",
-  "version": "2.6.2",
+  "desktopName": "simple-music.desktop",
+  "version": "2.7.0",
   "description": "简约音乐播放器",
   "author": "yshAM",
   "license": "GPL-3.0-only",
@@ -21,6 +22,7 @@
     "test": "vitest run",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux",
     "server:dev": "tsx server/index.ts",
     "eval:lyrics": "tsx scripts/lyrics-eval/run.mts",
     "release:check": "node scripts/release/check-release.mjs"
@@ -33,6 +35,7 @@
     "NeteaseCloudMusicApi": "^4.32.0",
     "onnxruntime-node": "1.30.0",
     "opencc-js": "^1.4.2",
+    "qishui-music-api": "0.2.2",
     "qrc-decoder": "1.0.2",
     "socks-proxy-agent": "^8.0.5",
     "undici": "^7.28.0",
@@ -154,6 +157,8 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Simple Music",
@@ -163,6 +168,36 @@
       "artifactName": "Simple-Music-${version}-portable.${ext}"
     },
     "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "AudioVideo",
+      "synopsis": "简约音乐播放器",
+      "description": "简约音乐播放器：网易云音乐 / QQ 音乐 / Apple Music / 本地音乐，支持动态歌词、桌面歌词与迷你播放条。",
+      "maintainer": "yshAM",
+      "executableName": "simple-music",
+      "syncDesktopName": true,
+      "desktop": {
+        "entry": {
+          "Name": "Simple Music",
+          "Comment": "简约音乐播放器",
+          "StartupWMClass": "simple-music",
+          "Keywords": "music;player;lyrics;netease;qq;apple;"
+        }
+      },
+      "artifactName": "Simple-Music-${version}-${arch}.${ext}",
       "files": [
         "out/**/*",
         "build/icon.ico",

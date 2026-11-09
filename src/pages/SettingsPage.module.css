@@ -186,6 +186,8 @@
   white-space: nowrap;
   cursor: pointer;
   transition: background 150ms, color 150ms;
+  /* Linux 的「前往下载」是 <a>，与按钮共用这一套样式 */
+  text-decoration: none;
 }
 .action:hover:not(:disabled),
 .storageAction:hover:not(:disabled) { background: var(--sm-bg-overlay); }
@@ -542,101 +544,6 @@
   font-size: 9px;
 }
 
-.playbackOrderList {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 0;
-  margin: 9px 0 0;
-  list-style: none;
-}
-
-.playbackOrderList::before {
-  content: '';
-  position: absolute;
-  z-index: 0;
-  top: 18px;
-  bottom: 18px;
-  left: 17px;
-  width: 1px;
-  background: linear-gradient(var(--sm-accent), var(--sm-border-strong));
-}
-
-.playbackOrderItem {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: 28px 20px minmax(0, 1fr) auto 30px;
-  align-items: center;
-  gap: 8px;
-  min-height: 46px;
-  padding: 6px 7px 6px 6px;
-  border: 1px solid var(--sm-border);
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--sm-bg-overlay) 86%, transparent);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.08);
-  user-select: none;
-}
-
-.playbackOrderRank {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border: 1px solid color-mix(in srgb, var(--sm-accent) 34%, var(--sm-border));
-  border-radius: 50%;
-  color: var(--sm-accent);
-  background: var(--sm-bg-base);
-  font-size: 10px;
-  font-variant-numeric: tabular-nums;
-}
-
-.playbackOrderName {
-  overflow: hidden;
-  color: var(--sm-text-primary);
-  font-size: 12px;
-  font-weight: 620;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.playbackOrderRole {
-  padding: 3px 7px;
-  border-radius: var(--sm-radius-pill);
-  color: var(--sm-text-secondary);
-  background: var(--sm-fill-subtle);
-  font-size: 9px;
-  white-space: nowrap;
-}
-
-.playbackOrderHandle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  cursor: grab;
-}
-
-.playbackOrderHandle:hover,
-.playbackOrderHandle:focus-visible { background: var(--sm-fill-hover); outline: none; }
-.playbackOrderHandle:active { cursor: grabbing; }
-
-.playbackOrderHandle > span {
-  width: 12px;
-  height: 16px;
-  opacity: 0.6;
-  background-image: radial-gradient(circle, var(--sm-text-secondary) 1.2px, transparent 1.35px);
-  background-size: 6px 5px;
-  touch-action: none;
-}
-
 .playbackOrderEmpty {
   margin-top: 9px;
   padding: 14px;
@@ -789,6 +696,8 @@
   .compactSubNavInner { display: flex; gap: 2px; min-height: 0; overflow-x: auto; scrollbar-width: none; }
   .compactSubNav .subTab { flex: 0 0 auto; white-space: nowrap; }
   .settingsContent [id^="settings-detail-"], .settingsSection { scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 168px); }
+  .settingsContent .topMenuGroup { scroll-margin-top: calc(var(--sm-topbar-height, 0px) + 144px); }
+  .topMenuGroup .groupTitle { padding-block: 9px; }
 }
 
 .settingsLayout[data-reduced-motion='true'] .subNav,

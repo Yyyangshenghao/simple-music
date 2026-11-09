@@ -91,7 +91,15 @@
 
 .name + * { margin-left: 4px; }
 
+.artistRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .artist {
+  min-width: 0;
   background: none;
   border: none;
   padding: 0;

@@ -23,11 +23,15 @@ import { wallpaperEngineWebRoutes } from './routes/wallpaper-engine-web'
 import { weatherRoutes } from './routes/weather'
 import { amllLyricRoutes } from './routes/amll-lyrics'
 import { kugouLyricRoutes } from './routes/kugou-lyrics'
+import { kugouRoutes } from './routes/kugou-music'
+import { bilibiliRoutes } from './routes/bilibili'
+import { qishuiRoutes } from './routes/qishui-music'
 import { updateRoutes } from './routes/update'
 import { staticRoutes } from './routes/static'
 import { appleMusicRoutes } from './routes/apple-music'
 import { appleMusicBridgeRoutes, publicAppleMusicBridgeRoutes } from './routes/apple-music-bridge'
 import { networkRoutes } from './routes/network'
+import { setDeviceIdentityDir } from './lib/device-identity'
 import { sendError } from './lib/http'
 import { isAllowedOrigin, isAllowedToken } from './lib/security'
 
@@ -48,6 +52,9 @@ const chain: RouteHandler[] = [
   neteaseRoutes,
   amllLyricRoutes,
   kugouLyricRoutes,
+  kugouRoutes,
+  bilibiliRoutes,
+  qishuiRoutes,
   podcastRoutes,
   beatmapRoutes,
   qqRoutes,
@@ -80,6 +87,7 @@ export function startServer(
     // 每次启动随机：壁纸页面只能读取壁纸目录，拿不到 API token。
     wallpaperWebToken: partial.wallpaperWebToken ?? randomBytes(32).toString('hex')
   }
+  setDeviceIdentityDir(ctx.userDataDir)
   return new Promise((resolve) => {
     const server = createServer(async (req, res) => {
       let url: URL

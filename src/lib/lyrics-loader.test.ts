@@ -36,7 +36,7 @@ beforeEach(() => {
   h.instrumental.mockReset().mockReturnValue(false)
   usePlayerStore.setState({ ...initialPlayer, currentTrack: apple, resolvedTrack: null, position: 15, status: 'paused' })
   useProviderStore.setState({ ...initialProviders, playbackOrder: ['apple', 'qq', 'netease'], byId: {
-    apple: { enabled: true, auth: 'authenticated' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
+    apple: { enabled: true, auth: 'authenticated' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' }, qq: { enabled: true, auth: 'authenticated' }, netease: { enabled: false, auth: 'anonymous' }
   } })
   useGameModeStore.setState({ enabled: false })
   useVisualStore.getState().updateFx({ desktopLyrics: false })
@@ -148,7 +148,7 @@ describe('宿主持有歌词获取与归属', () => {
     pending.resolve(result)
     await flush()
     expect(h.fetch).toHaveBeenCalledOnce()
-    expect(h.fetch).toHaveBeenCalledWith(apple, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenCalledWith(apple, ['apple', 'qq', 'netease', 'qishui'], expect.any(AbortSignal))
     expect(useLyricsStore.getState()).toMatchObject({ loading: false, trackKey: 'apple:a1', source: 'qq', lines: result.main, currentIndex: 1 })
     expect(usePlayerStore.getState().currentTrack).toBe(apple)
   })
@@ -173,7 +173,7 @@ describe('宿主持有歌词获取与归属', () => {
     h.fetch.mockResolvedValueOnce({ ...result, source: null, main: [] })
     useProviderStore.getState().setEnabled('qq', false)
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'netease', 'qq'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'netease', 'qq', 'qishui'], expect.any(AbortSignal))
     expect(useLyricsStore.getState()).toMatchObject({ source: null, lines: [], loading: false })
   })
 
@@ -187,7 +187,7 @@ describe('宿主持有歌词获取与归属', () => {
     usePlayerStore.setState({ resolvedTrack: resolved })
     expect(oldSignal.aborted).toBe(true)
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(resolved, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(resolved, ['apple', 'qq', 'netease', 'qishui'], expect.any(AbortSignal))
     old.resolve({ ...result, main: [{ time: 0, text: '旧会话' }] })
     await flush()
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'apple:a1', source: 'qq', lines: result.main })
@@ -287,7 +287,7 @@ describe('宿主持有歌词获取与归属', () => {
     const full = { ...placeholder, pending: false, catalogId: '123456' }
     usePlayerStore.setState({ currentTrack: full })
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(full, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(full, ['apple', 'qq', 'netease', 'qishui'], expect.any(AbortSignal))
     expect(useLyricsStore.getState().lines).toEqual(result.main)
     usePlayerStore.setState({ resolvedTrack: { ...full }, currentTrack: { ...full, cover: 'new-cover', url: 'new-url' } })
     await flush()
@@ -324,12 +324,12 @@ describe('宿主持有歌词获取与归属', () => {
     const local: Track = { ...apple, provider: 'local', source: 'local', id: 'file1' }
     usePlayerStore.setState({ currentTrack: local })
     useProviderStore.setState({ playbackOrder: [], byId: {
-      apple: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' }, netease: { enabled: false, auth: 'anonymous' }
+      apple: { enabled: false, auth: 'anonymous' }, qishui: { enabled: false, auth: 'anonymous' }, kugou: { enabled: false, auth: 'authenticated' }, bilibili: { enabled: false, auth: 'anonymous' }, qq: { enabled: false, auth: 'anonymous' }, netease: { enabled: false, auth: 'anonymous' }
     } })
     h.fetch.mockResolvedValueOnce({ ...result, source: 'local' })
     stopLoader = initLyricsLoader()
     await flush()
-    expect(h.fetch).toHaveBeenCalledWith(local, [], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenCalledWith(local, ['qishui'], expect.any(AbortSignal))
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'local:file1', source: 'local' })
     usePlayerStore.setState({ currentTrack: null })
     expect(useLyricsStore.getState()).toMatchObject({ trackKey: null, loading: false, lines: [] })
@@ -346,7 +346,7 @@ describe('宿主持有歌词获取与归属', () => {
       stopLoader = initLyricsLoader()
       await flush()
       expect(h.localSource).not.toHaveBeenCalled()
-      expect(h.fetch).toHaveBeenCalledWith(local, ['apple', 'qq'], expect.any(AbortSignal))
+      expect(h.fetch).toHaveBeenCalledWith(local, ['apple', 'qq', 'qishui'], expect.any(AbortSignal))
       expect(useLyricsStore.getState()).toMatchObject({ trackKey: 'local:file1', source: 'local' })
     } finally { useLyricsSourceStore.setState({ defaultSource: previous }) }
   })
@@ -355,11 +355,11 @@ describe('宿主持有歌词获取与归属', () => {
     useSettingsStore.setState({ lyricsGuestSources: { netease: false, qq: false } })
     stopLoader = initLyricsLoader()
     await flush()
-    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'qq'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'qq', 'qishui'], expect.any(AbortSignal))
     useSettingsStore.getState().setLyricsGuestSource('netease', true)
     await flush()
     expect(h.fetch).toHaveBeenCalledTimes(2)
-    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'qq', 'netease'], expect.any(AbortSignal))
+    expect(h.fetch).toHaveBeenLastCalledWith(apple, ['apple', 'qq', 'netease', 'qishui'], expect.any(AbortSignal))
   })
 
   it('无关在线账号交换不使本地LRC失效', async () => {

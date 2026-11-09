@@ -502,7 +502,16 @@
   }
 }
 
+.artistRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .artistName {
+  min-width: 0;
   font: inherit;
   border: none;
   background: none;
@@ -511,6 +520,16 @@
   color: rgba(var(--lyrics-ink-rgb), 0.65);
   text-align: left;
   letter-spacing: 0.5px;
+}
+
+.trackCaption {
+  max-width: 100%;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(11px, 0.9vw, 14px);
+  color: rgba(var(--lyrics-ink-rgb), 0.55);
 }
 
 /* Scrollable lyrics area(右栏) */

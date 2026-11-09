@@ -45,4 +45,12 @@ describe('歌单批量追加归属检查', () => {
     expect(h.call).toHaveBeenCalledTimes(1)
   })
 
+  it('主写入接口返回明确风控时不再追加备用写入', async () => {
+    h.call.mockImplementation(async name => ({ status: 200, body: name === 'playlist_detail'
+      ? { playlist: { creator: { userId: 7 }, specialType: 0 } }
+      : { code: -460 } }))
+    expect(await add()).toMatchObject({ status: 409, body: { success: false, code: -460 } })
+    expect(h.call.mock.calls.map(([name]) => name)).toEqual(['playlist_detail', 'playlist_tracks'])
+  })
+
 })

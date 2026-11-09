@@ -3,6 +3,8 @@ import { ListScrollActivity } from '../ui/list-scroll-activity'
 import { usePlayerStore } from '../../stores/player'
 import { useSettingsStore } from '../../stores/settings'
 import { useLikesStore, likeKeyOf } from '../../stores/likes'
+import { useBilibiliTrackDisplay } from '../../hooks/useBilibiliTrackDisplay'
+import { useTrackCover } from '../../hooks/useTrackCover'
 import { formatDuration } from '../../lib/format-duration'
 import type { Track } from '../../types/domain'
 import styles from './TrackRow.module.css'
@@ -10,13 +12,15 @@ import { sizedImage } from '../../lib/image-size'
 import { HeartIcon } from '../ui/HeartIcon'
 import { EqIndicator } from '../ui/EqIndicator'
 import { SourceBadge } from '../ui/SourceBadge'
-import { offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
+import { isCacheableSource, offlineTrackKey, type OfflineCacheStatus } from '../../lib/offline-cache'
 import { useOfflineCacheStore } from '../../stores/offline-cache'
 import { anchorOf, useTrackActionsStore } from '../../stores/track-actions'
 
 interface TrackRowProps {
   track: Track
   index?: number
+  /** 搜索页用独立第三行，固定高度的虚拟列表用行内原题。 */
+  expandedCaption?: boolean
   onPlay(): void
   disabled?: boolean
   statusLabel?: string
@@ -44,7 +48,9 @@ function OfflineIcon({ downloaded }: { downloaded: boolean }) {
   )
 }
 
-export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
+export function TrackRow({ track, index, expandedCaption = false, onPlay, disabled = false, statusLabel, hideOfflineAction = false, hideLikeAction = false, hideCover = false, hideSource = false, showInactiveSource = false, statusColumn = false }: TrackRowProps) {
+  const display = useBilibiliTrackDisplay(track)
+  const cover = useTrackCover(hideCover ? null : track)
   const scrolling = useContext(ListScrollActivity)
   // 窄布尔 selector：只在"是否当前曲目/是否播放中"变化时重渲染，不受高频 position 更新影响
   const isCurrent = usePlayerStore(
@@ -75,7 +81,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
   }
   const visibleOffline = offline ?? lastOffline.current.status
   const downloaded = visibleOffline?.state === 'downloaded'
-  const offlineVisible = track.source === 'netease' || track.source === 'qq'
+  const offlineVisible = isCacheableSource(track.source)
 
   // 首次渲染该行时回查服务端红心状态(已知 key 在 store 内跳过,不会重复请求)
   useEffect(() => {
@@ -87,7 +93,7 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
 
   return (
     <div
-      className={`${styles.row}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
+      className={`${styles.row}${expandedCaption && display?.caption ? ` ${styles.rowWithCaption}` : ''}${isCurrent ? ` ${styles.rowActive}` : ''} no-drag`}
       onContextMenu={(e) => {
         e.preventDefault()
         useTrackActionsStore.getState().openMenu(track, { x: e.clientX, y: e.clientY, width: 0, height: 0 })
@@ -103,18 +109,21 @@ export function TrackRow({ track, index, onPlay, disabled = false, statusLabel, 
             </span>
         )}
         {/* 无封面时留同尺寸占位，混排（本地歌曲等）时标题列仍对齐。 */}
-        {!hideCover && (track.cover
-          ? <img className={styles.cover} src={sizedImage(track.cover, 96)} alt="" loading="lazy" />
+        {!hideCover && (cover
+          ? <img className={styles.cover} src={sizedImage(cover, 96)} alt="" loading="lazy" />
           : <span className={`${styles.cover} ${styles.coverEmpty}`} aria-hidden="true" />)}
         <div className={styles.info}>
-          <span className={styles.name}>{track.name}</span>
-          <span className={styles.artistLine}>
-            <span className={styles.artist}>{track.artist}</span>
+          <span className={styles.name} title={display?.name ?? track.name}>{display?.name ?? track.name}</span>
+          <span className={styles.artistLine} data-caption={!!display?.caption && !expandedCaption || undefined}>
+            <span className={styles.artist}>{display?.artist ?? track.artist}</span>
+            {!expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
+            {/* 动态模式下徽标隐藏时仍占位，放在行尾才不会在歌手与原题之间留空。 */}
             {!hideSource && <SourceBadge source={track.source} compact showInactive={showInactiveSource} displayMode={showInactiveSource ? 'always' : undefined} />}
           </span>
+          {expandedCaption && display?.caption && <span className={styles.caption} title={display.caption}>{display.caption}</span>}
         </div>
         {/* 专辑列只在宽行显示（容器查询）；专辑页本身隐藏封面时不重复。 */}
-        {!hideCover && track.album && <span className={styles.album}>{track.album}</span>}
+        {!hideCover && track.album && <span className={styles.album} title={track.album}>{track.album}</span>}
         {statusLabel
           ? <span className={`${styles.status}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{statusLabel}</span>
           : track.duration ? <span className={`${styles.duration}${statusColumn ? ` ${styles.metaColumn}` : ''}`}>{formatDuration(track.duration)}</span>

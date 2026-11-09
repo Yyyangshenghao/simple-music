@@ -40,7 +40,8 @@ function createPlayerWindow(port: number, token: string): void {
       win.hide()
     })
   } else {
-    if (process.platform === 'win32') {
+    // Windows 与 Linux 都是无边框自绘窗口 + 托盘，共用"缩回托盘 / 退出应用"的关闭方式。
+    if (process.platform === 'win32' || process.platform === 'linux') {
       attachWindowClose(win, () => isQuitting)
     }
     // Apple Music 播放窗口会在后台隐藏；主窗口关闭后主动退出，避免只剩后台窗口驻留。

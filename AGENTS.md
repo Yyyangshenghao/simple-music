@@ -4,7 +4,7 @@
 
 ## 项目与入口
 
-Simple Music 是 Electron + React + TypeScript 桌面播放器。在线平台有网易云、QQ、Apple Music；本地文件是第四种 `MusicSource`，不属于在线 `ProviderId`。
+Simple Music 是 Electron + React + TypeScript 桌面播放器。当前开发版的在线来源有网易云、QQ、Apple Music、酷狗、汽水和哔哩哔哩；本地文件是 `MusicSource` 的独立来源，不属于在线 `ProviderId`。各来源的内容、账号与播放边界见 [平台功能地图](docs/music-sources.md)。
 
 | 目录 | 职责 | 先读 |
 |---|---|---|
@@ -34,7 +34,7 @@ npm run build                  # 构建到 out/，不生成安装包
 - 页面、文案和控件改动前依次阅读 [产品理念](PRODUCT.md)、[界面设计准则](DESIGN.md) 和 [界面现状](docs/ui-ux.md)：减少重复说明，明确操作层级，保留风险与不可用原因。主动检查同类页面及悬停、按压、松开、忙态等连续反馈，使用实际界面截图与必要的连续帧验收；自动测试不能代替视觉检查，未验收范围明确记录。长期取舍及入口变化同步更新这三份文档，不要求用户反复解释已确认的偏好。
 - TypeScript 沿用两空格、单引号、无分号和现有 ESM 写法；组件样式用同目录 CSS Modules，复用 `src/styles/tokens.css` 与 `src/lib/motion-presets.ts`。不要顺带格式化无关文件。
 - `Track.duration` 为毫秒；player store 的 `position` / `duration` 为秒。`Track.id`、`Playlist.id` 是 `unknown`，比较或拼接前先 `String()`。
-- 在线实体按自身 `source` 选 `providerFor(source)` 能力或兼容层 `serviceFor(source)`；本地文件走本地服务。`ProviderId` 是 `netease` / `qq` / `apple`；`MusicSource` 另含 `local`。新增来源分支必须显式考虑本地文件。
+- 在线实体按自身 `source` 选 `providerFor(source)` 能力或兼容层 `serviceFor(source)`；本地文件走本地服务。`ProviderId` 是 `netease` / `qq` / `apple` / `kugou` / `qishui` / `bilibili`；`MusicSource` 另含 `local`。新增来源分支必须显式考虑本地文件。
 - Apple Music 使用独立 MusicKit 播放会话，不进入网易/QQ 的跨源兜底、直链代理或离线音频缓存；其他平台失败也不能静默换成 Apple。歌词可以独立从已启用平台匹配同曲补位。
 - 异步页面请求、切歌和缓存更新要丢弃过期响应；跨源或登录态变化时尤其检查会话序号、取消信号和平台参与状态。
 - 本地 API URL 不能再送入 `/api/audio` 或封面代理；本地曲目按索引 ID 读取。新增 API、代理或 IPC 时保持 `server/lib/security.ts` 的 Origin/token/上游 URL 边界及 `src/types/ipc.ts` 契约。
