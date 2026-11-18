@@ -38,13 +38,13 @@ function elements(node: ReactNode, tag: string): Array<ReactElement<ElementProps
     return child.type === tag ? [child] : elements(child.props.children, tag)
   })
 }
-function render<T>(component: (props: T) => ReactElement, props: T) {
+function render<T>(component: (props: T) => ReactElement<any>, props: T) {
   h.cursor = 0
   const tree = component(props)
   h.effects.splice(0).forEach(effect => effect())
   return tree
 }
-function click(tree: ReactElement, text: string) {
+function click(tree: ReactElement<any>, text: string) {
   const button = elements(tree.props.children, 'button').find(item => renderToStaticMarkup(item).includes(text))
   expect(button, text).toBeTruthy()
   button!.props.onClick?.()

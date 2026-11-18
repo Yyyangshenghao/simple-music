@@ -375,7 +375,7 @@ function ControlMotionGroup() {
           <Switch checked={enabled} onChange={(value) => setPerformance(controlMotionFlags(value))} aria-label="控件动效" aria-describedby={partial ? 'settings-control-motion-status' : undefined} />
         </div>
       </div>
-      <div id="settings-control-motion-detail" className={styles.controlDetail} data-expanded={open} aria-hidden={!open} {...(open ? {} : { inert: '' })}>
+      <div id="settings-control-motion-detail" className={styles.controlDetail} data-expanded={open} aria-hidden={!open} {...(open ? {} : { inert: true })}>
         <div className={styles.controlDetailInner}>
           <div className={styles.effectGrid}>
             {CONTROL_EFFECTS.map(effect => <EffectSwitchRow key={effect.key} effect={effect} />)}
@@ -1178,7 +1178,7 @@ export function SettingsPage() {
                     transition={springSnappy}
                   >{label}</motion.button>
                   {items.length > 0 && <div id={`settings-subnav-${id}`} className={styles.subNav} data-expanded={expandedSection === id}
-                    aria-hidden={expandedSection !== id} {...(expandedSection !== id ? { inert: '' } : {})}>
+                    aria-hidden={expandedSection !== id} {...(expandedSection !== id ? { inert: true } : {})}>
                     <div className={styles.subNavInner} aria-label={`${label}分组`}>
                     <BranchLines items={items} active={activeSection === id ? activeDetail : ''} />
                     {items.map(item => <button key={item.id} type="button"
@@ -1192,7 +1192,7 @@ export function SettingsPage() {
               ))}
             </div>
             <div className={styles.compactSubNav} data-expanded={expandedSection === activeSection} aria-hidden={expandedSection !== activeSection}
-              {...(expandedSection !== activeSection ? { inert: '' } : {})}>
+              {...(expandedSection !== activeSection ? { inert: true } : {})}>
               <div className={styles.compactSubNavInner} aria-label="当前分类分组">
               {settingsTabs.find(section => section.id === activeSection)!.items.map(item => <button
                 key={item.id} type="button" className={styles.subTab}

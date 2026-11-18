@@ -23,7 +23,7 @@ function readStoredKind(): AppPlaylistKind {
 }
 
 /** 应用歌单：歌单与伴奏二选一展示，选择跨会话记住；交互与「收藏」的歌单/专辑切换一致。 */
-export function AppPlaylistsTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+export function AppPlaylistsTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const pageMotion = usePageTransition()
   const accompanimentsRequest = useNavigationStore(state => state.libraryAccompanimentsRequest)
   const [kind, setKind] = useState<AppPlaylistKind>(() => accompanimentsRequest ? 'accompaniments' : readStoredKind())
@@ -50,7 +50,7 @@ export function AppPlaylistsTab({ scrollRef }: { scrollRef: RefObject<HTMLDivEle
   )
 }
 
-function AppPlaylistsShelf({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+function AppPlaylistsShelf({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const items = useAppPlaylistsStore(state => state.items)
   const error = useAppPlaylistsStore(state => state.error)
   const returning = useNavigationStore(state => state.lastAction === 'pop')

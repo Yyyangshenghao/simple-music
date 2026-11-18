@@ -88,8 +88,8 @@ interface DragState {
 /** 指针拖动：越过阈值才算拖动，否则保留为普通点击；Esc 或落在两区之外都不改变常用区。 */
 function useModeDrag({ pins, rowRef, trayRef, onDrop, onStart }: {
   pins: string[]
-  rowRef: RefObject<HTMLDivElement>
-  trayRef: RefObject<HTMLDivElement>
+  rowRef: RefObject<HTMLDivElement | null>
+  trayRef: RefObject<HTMLDivElement | null>
   onDrop(id: string, target: ModeDropTarget): void
   onStart(from: 'row' | 'tray'): void
 }) {
@@ -194,7 +194,7 @@ function useModeDrag({ pins, rowRef, trayRef, onDrop, onStart }: {
   return { drag, ghostRef, begin, consumeClick }
 }
 
-function useTrayPosition(open: boolean, anchorRef: RefObject<HTMLButtonElement>) {
+function useTrayPosition(open: boolean, anchorRef: RefObject<HTMLButtonElement | null>) {
   const [style, setStyle] = useState<CSSProperties>()
   useLayoutEffect(() => {
     if (!open) return

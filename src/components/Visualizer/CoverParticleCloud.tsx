@@ -406,6 +406,21 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
     [textures]
   )
 
+  // 材质自己建并直接引用上面的 uniforms：R3F 9 的 <shaderMaterial uniforms> 会把每项复制进材质，
+  // 之后逐帧改这里的 value 就传不到着色器，粒子会完全静止。
+  const material = useMemo(
+    () => new THREE.ShaderMaterial({
+      vertexShader: particleVertexShader,
+      fragmentShader: particleFragmentShader,
+      uniforms,
+      transparent: true,
+      depthWrite: false,
+      depthTest: false
+    }),
+    [uniforms]
+  )
+  useEffect(() => () => material.dispose(), [material])
+
   useEffect(() => {
     // 浅色舞台透出更多底色，封面保持原色，避免深色像素吞掉深色歌词。
     uniforms.uThemeOpacity.value = lightBackground ? 0.88 : 1
@@ -633,16 +648,7 @@ export function CoverParticleCloud({ coverUrl, lightBackground = false }: CoverP
 
   return (
     <group ref={swayGroupRef}>
-      <points geometry={geometry}>
-        <shaderMaterial
-          vertexShader={particleVertexShader}
-          fragmentShader={particleFragmentShader}
-          uniforms={uniforms}
-          transparent
-          depthWrite={false}
-          depthTest={false}
-        />
-      </points>
+      <points geometry={geometry} material={material} />
       {/* 不可见的鼠标拾取面:与粒子同组同姿态,拾取坐标即粒子局部坐标 */}
       <mesh ref={mousePlaneRef} onPointerMove={onPointerMove} onPointerOut={onPointerOut}>
         <planeGeometry args={[PLANE_SIZE, PLANE_SIZE]} />

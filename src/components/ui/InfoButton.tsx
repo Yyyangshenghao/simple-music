@@ -32,7 +32,7 @@ function positionTooltip(anchor: HTMLSpanElement): void {
 export function InfoButton({ label, text: description, align = 'right', preview }: { label: string; text: string; align?: 'left' | 'right'; preview?: ReactNode }) {
   const tooltipId = useId()
   const wrapRef = useRef<HTMLSpanElement>(null)
-  const unmountTimer = useRef<ReturnType<typeof setTimeout>>()
+  const unmountTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
 

@@ -19,7 +19,7 @@ export function BilibiliSongCandidates({ track, disabled, onBusyChange, onConfir
   const [choosing, setChoosing] = useState(false)
   const [error, setError] = useState('')
   const [retry, setRetry] = useState(0)
-  const request = useRef<AbortController>()
+  const request = useRef<AbortController | undefined>(undefined)
   const identity = bilibiliIdentityKey(track)
 
   useEffect(() => {

@@ -39,7 +39,7 @@ export function ExplorePagePreview({ source }: { source: ProviderId }) {
     <div className={styles.heading}><h4>探索页预览</h4><span>实时内容 · 只读</span></div>
     <div ref={viewport} className={styles.viewport} data-explore-preview>
       <div className={styles.spacer} style={{ height: size.height }}>
-        <div ref={content} className={styles.page} aria-hidden="true" {...{ inert: '' }}
+        <div ref={content} className={styles.page} aria-hidden="true" {...{ inert: true }}
           style={{ width: size.width, transform: `scale(${size.scale})` }}>
           <LayoutGroup id={groupId}>
             <ProviderRecommendationSection key={`${source}:${accountSession}`} source={source} onPreview={ignorePreview} />

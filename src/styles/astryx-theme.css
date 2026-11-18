@@ -1,0 +1,48 @@
+/*
+ * Astryx 设计系统接入层（3.0.0 试点）。
+ * - 只引组件样式与 neutral 主题，不引 reset.css：它会全局重置现有界面。
+ * - 两份样式都在 @layer 里，本项目未分层的样式始终优先，不会被 Astryx 覆盖。
+ * - neutral 主题只在带 data-astryx-theme="neutral" 的容器内生效；
+ *   不使用 <Theme> 组件，因为根 Theme 会改写 <html> 的 data-theme，和我们的主题切换冲突。
+ * - 下面把 Astryx 的语义色、圆角、字体映射到 tokens.css，深浅色与主题色轻染自动跟随。
+ */
+@import '@astryxdesign/core/astryx.css';
+@import '@astryxdesign/theme-neutral/theme.css';
+
+[data-astryx-theme="neutral"] {
+  --font-family-body: var(--sm-font-sans);
+  --font-family-heading: var(--sm-font-sans);
+
+  --color-text-primary: var(--sm-text-primary);
+  --color-text-secondary: var(--sm-text-secondary);
+  --color-text-disabled: var(--sm-text-muted);
+  --color-icon-primary: var(--sm-text-primary);
+  --color-icon-secondary: var(--sm-text-secondary);
+  --color-icon-disabled: var(--sm-text-muted);
+
+  --color-accent: var(--sm-accent);
+  --color-accent-muted: var(--sm-fill-active);
+  --color-on-accent: var(--sm-text-on-accent);
+  --color-icon-accent: var(--sm-accent);
+
+  /* 玻璃表面：控件底色用半透明填充，不叠白光层（见玻璃样式规范）。 */
+  --color-background-surface: var(--sm-bg-overlay);
+  --color-background-card: var(--sm-bg-elevated);
+  --color-background-muted: var(--sm-fill-subtle);
+  --color-background-popover: var(--sm-bg-overlay);
+  --color-neutral: var(--sm-fill-subtle);
+  --color-overlay-hover: var(--sm-fill-hover);
+  --color-overlay-pressed: var(--sm-fill-active);
+
+  --color-border: var(--sm-border);
+  --color-border-emphasized: var(--sm-border-strong);
+  --color-error: var(--sm-color-danger);
+  --color-text-error: var(--sm-color-danger);
+  --color-success: var(--sm-color-success);
+
+  --focus-outline-color: var(--sm-accent);
+  --radius-full: var(--sm-radius-pill);
+
+  color: var(--sm-text-primary);
+  font-family: var(--sm-font-sans);
+}

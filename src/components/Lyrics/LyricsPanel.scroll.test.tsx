@@ -96,7 +96,7 @@ function find(node: unknown, predicate: (element: ReactElement<Record<string, un
 }
 
 let container: ScrollContainer | null
-let tree: ReactElement
+let tree: ReactElement<any>
 let scrollRef: { current: unknown } | undefined
 function render(open = true, controlsHidden = false) {
   let iterations = 0

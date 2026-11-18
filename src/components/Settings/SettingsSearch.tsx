@@ -11,7 +11,7 @@ const entryKey = (entry: SettingSearchEntry) => `${entry.section}|${entry.detail
 const HIT_DURATION = 2400
 
 export function SettingsSearch({ pageRef, onNavigate }: {
-  pageRef: RefObject<HTMLElement>
+  pageRef: RefObject<HTMLElement | null>
   onNavigate(section: string, detail?: string): void
 }) {
   const [query, setQuery] = useState('')

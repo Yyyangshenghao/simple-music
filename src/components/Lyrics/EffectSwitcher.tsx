@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useState, type JSX } from 'react'
 import { DEFAULT_LYRICS_3D, useSettingsStore } from '../../stores/settings'
 import type { Lyrics3dParams, Lyrics3dStyle } from '../../types/domain'
 import type { SystemFontFamily } from '../../types/ipc'

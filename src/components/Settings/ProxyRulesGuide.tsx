@@ -33,7 +33,7 @@ function CodeBlock({ text, label }: { text: string; label: string }) {
 }
 
 /** 代理软件规则引导：TUN/增强模式下应用绕不开代理，只能请用户在代理软件里让 Apple Music 直连。 */
-export function ProxyRulesGuide({ dialogRef }: { dialogRef: RefObject<HTMLDialogElement> }) {
+export function ProxyRulesGuide({ dialogRef }: { dialogRef: RefObject<HTMLDialogElement | null> }) {
   const dialogId = useId()
   const titleId = useId()
   const [client, setClient] = useState<ProxyClient>('clash')

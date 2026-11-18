@@ -1,6 +1,7 @@
 import { createRoot } from 'react-dom/client'
 import './styles/global.css'
 import './styles/scroll-gradients.css'
+import './styles/astryx-theme.css'
 import App from './App'
 import { initTaskCenterRuntime } from './lib/task-center-runtime'
 import { startPlaybackClient } from './lib/playback-client'

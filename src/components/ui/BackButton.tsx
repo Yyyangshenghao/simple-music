@@ -25,7 +25,7 @@ export function BackButton({ onClick, label = '返回', ariaLabel, className, au
   const [introDone, setIntroDone] = useState(!autoHide)
   const [hovering, setHovering] = useState(false)
   const [focused, setFocused] = useState(false)
-  const leaveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hidden = autoHide && introDone && !hovering && !focused
 
   useEffect(() => {

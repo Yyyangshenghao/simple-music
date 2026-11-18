@@ -16,7 +16,7 @@ vi.mock('react', async original => ({
 
 class Viewport extends EventTarget { scrollTop = 0 }
 function render(viewport: Viewport, pauseCardEffects = false, onScrolledChange = vi.fn()) {
-  return ScrollArea({ children: '卡片', scrollRef: { current: viewport } as unknown as RefObject<HTMLDivElement>, pauseCardEffects, onScrolledChange })
+  return ScrollArea({ children: '卡片', scrollRef: { current: viewport } as unknown as RefObject<HTMLDivElement | null>, pauseCardEffects, onScrolledChange })
 }
 beforeEach(() => { vi.useFakeTimers(); vi.clearAllMocks() })
 afterEach(() => { h.cleanups.splice(0).forEach(cleanup => cleanup()); vi.useRealTimers() })

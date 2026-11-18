@@ -9,7 +9,7 @@ export function nextProgressiveCount(current: number, total: number, batch = PRO
 }
 
 /** 先渲染一批，哨兵接近滚动视口底部时追加下一批。 */
-export function useProgressiveCount(total: number, scrollRef: RefObject<HTMLElement>, batch = PROGRESSIVE_BATCH) {
+export function useProgressiveCount(total: number, scrollRef: RefObject<HTMLElement | null>, batch = PROGRESSIVE_BATCH) {
   const [count, setCount] = useState(batch)
   const sentinelRef = useRef<HTMLDivElement>(null)
   const visible = Math.min(count, total)

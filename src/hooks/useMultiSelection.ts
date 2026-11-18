@@ -7,7 +7,7 @@ interface Options {
   disabledKeys?: string[]
   resetKey: string
   onExit(): void
-  virtual?: { listRef: RefObject<HTMLDivElement>; rowHeight: number }
+  virtual?: { listRef: RefObject<HTMLDivElement | null>; rowHeight: number }
 }
 
 export function useMultiSelection(options: Options) {

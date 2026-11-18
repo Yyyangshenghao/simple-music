@@ -1,3 +1,4 @@
+import type { JSX } from 'react'
 import { JellyRadio, type JellyRadioItem } from '../components/ui/JellyRadio'
 import styles from './CollectionKindSwitch.module.css'
 

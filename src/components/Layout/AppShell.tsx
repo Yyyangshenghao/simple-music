@@ -84,7 +84,7 @@ export function AppShell() {
             key={page.key}
             className={`${styles.page}${page.hidden ? ` ${styles.retainedPage}` : ''}`}
             aria-hidden={page.hidden || undefined}
-            {...(page.hidden ? { inert: '' } : {})}
+            {...(page.hidden ? { inert: true } : {})}
             custom={dir}
             variants={pageVariants}
             initial={reducedMotion || isDetailView(page.view) ? false : 'enter'}

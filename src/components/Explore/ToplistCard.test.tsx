@@ -48,7 +48,7 @@ function mount(id: string) {
   h.instances.push(instance)
   const playlist: Playlist = { provider: 'netease', source: 'netease', type: 'playlist', id, name: id, cover: '', creator: '', trackCount: 1, playCount: 0 }
   const entry: ToplistEntry = { playlist, preview: [{ name: '预览', artist: '歌手' }], updateFrequency: '' }
-  const component = ToplistCard as unknown as (props: { entry: ToplistEntry; onOpen(): void }) => ReactElement
+  const component = ToplistCard as unknown as (props: { entry: ToplistEntry; onOpen(): void }) => ReactElement<any>
   const tree = component({ entry, onOpen: vi.fn() })
   function findButton(node: ReactNode): ReactElement<{ onClick(event: { stopPropagation(): void }): Promise<void> }> | undefined {
     if (!node || typeof node !== 'object' || !('props' in node)) return

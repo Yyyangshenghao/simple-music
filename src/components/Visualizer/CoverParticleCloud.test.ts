@@ -65,9 +65,9 @@ describe('CoverParticleCloud 动画时钟', () => {
 
   function mount() {
     const tree = CoverParticleCloud({})
-    const points = tree.props.children[0] as ReactElement
-    const material = points.props.children as ReactElement
-    const uniforms = material.props.uniforms as Record<string, { value: number }>
+    const points = tree.props.children[0] as ReactElement<any>
+    const material = points.props.material as THREE.ShaderMaterial
+    const uniforms = material.uniforms as Record<string, { value: number }>
     const camera = new THREE.PerspectiveCamera()
     let elapsed = 0
     const tick = (delta = 1 / 60) => {
@@ -75,7 +75,7 @@ describe('CoverParticleCloud 动画时钟', () => {
       vi.mocked(performance.now).mockReturnValue(elapsed * 1000)
       harness.frame!({ clock: { getElapsedTime: () => elapsed }, camera }, delta)
     }
-    return { uniforms, tick, rippleData: material.props.uniforms.uRippleTex.value.image.data as Float32Array }
+    return { uniforms, tick, rippleData: material.uniforms.uRippleTex.value.image.data as Float32Array }
   }
 
   it.each(['eco', 'balanced'])('%s 档在未采样的帧仍推进音频动画，频谱保持 30Hz', mode => {

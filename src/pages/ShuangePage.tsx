@@ -111,7 +111,7 @@ export function ShuangePage() {
 
   return (
     <div className={styles.page} onWheel={handleWheel} aria-hidden={!pageActive || undefined}
-      {...(!pageActive ? { inert: '' } : {})}>
+      {...(!pageActive ? { inert: true } : {})}>
       {active && track && (
         <motion.div
           key={`${track.source}-${String(track.id)}`}

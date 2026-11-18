@@ -7,7 +7,7 @@ const MIN_THUMB = 28
 
 interface ScrollThumbProps {
   /** 要接管的滚动容器；它自己的原生滚动条需隐藏（加 data-scroll-thumb-host 或自行 scrollbar-width: none）。 */
-  target: RefObject<HTMLElement>
+  target: RefObject<HTMLElement | null>
   className?: string
 }
 

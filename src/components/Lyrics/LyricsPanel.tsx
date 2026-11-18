@@ -55,7 +55,7 @@ function HeaderDock({ side, open, pinned, children }: { side: 'left' | 'right'; 
   const [introDone, setIntroDone] = useState(false)
   const [hovering, setHovering] = useState(false)
   const [focused, setFocused] = useState(false)
-  const leaveTimer = useRef<ReturnType<typeof setTimeout>>()
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hidden = open && introDone && !hovering && !focused && !pinned
 
   // 每次打开重新走一遍「先露面再躲起」

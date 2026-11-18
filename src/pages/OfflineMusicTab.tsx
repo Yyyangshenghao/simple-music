@@ -20,7 +20,7 @@ import { useToastStore } from '../stores/toast'
 import styles from './OfflineMusicTab.module.css'
 import libraryStyles from './LibraryPage.module.css'
 
-export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+export function OfflineMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const [openingDirectory, setOpeningDirectory] = useState(false)
   async function openDirectory() {
     if (openingDirectory || !window.desktop?.openDirectory) return

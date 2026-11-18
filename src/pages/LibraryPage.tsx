@@ -212,7 +212,7 @@ function readStoredKind(): CollectionKind {
 }
 
 /** 收藏：歌单与专辑二选一展示，选择跨会话记住；平台不支持专辑时只显示歌单。 */
-function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: ProviderId; albumsAvailable: boolean; scrollRef: RefObject<HTMLDivElement> }) {
+function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: ProviderId; albumsAvailable: boolean; scrollRef: RefObject<HTMLDivElement | null> }) {
   const pageMotion = usePageTransition()
   const [stored, setStored] = useState(readStoredKind)
   const kind: CollectionKind = albumsAvailable ? stored : 'collected'
@@ -236,7 +236,7 @@ function FavoritesTab({ source, albumsAvailable, scrollRef }: { source: Provider
 interface ProviderLibraryGridProps {
   mode: ProviderLibraryMode
   source: ProviderId
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: RefObject<HTMLDivElement | null>
 }
 
 function cachedLibraryResult(source: ProviderId, mode: ProviderLibraryGridProps['mode']): Partial<Record<ProviderId, ProviderResult<Playlist[]>>> {
@@ -367,7 +367,7 @@ function ProviderLibraryGrid({ mode, source, scrollRef }: ProviderLibraryGridPro
 }
 
 /** 本地播放历史列表:点击整单入队从该曲播起。 */
-function RecentPlaysList({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+function RecentPlaysList({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const items = useRecentPlaysStore((s) => s.items)
   const queueRef = useRef<Track[]>([])
   queueRef.current = useMemo(() => items.map((r) => r.track), [items])
@@ -475,7 +475,7 @@ function LocalSortMenu({
 }
 
 /** 本地音乐索引的歌曲/专辑视图，分组和钻取均只使用本机曲目。 */
-function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement> }) {
+function LocalMusicTab({ scrollRef }: { scrollRef: RefObject<HTMLDivElement | null> }) {
   const [folders, setFolders] = useState<string[]>([])
   const [tracks, setTracks] = useState<Track[]>([])
   const [keyword, setKeyword] = useState('')

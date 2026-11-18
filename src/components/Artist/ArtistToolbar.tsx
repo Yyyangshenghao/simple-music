@@ -5,10 +5,10 @@ import styles from './ArtistToolbar.module.css'
 interface ArtistToolbarProps {
   children: ReactNode
   className: string
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: RefObject<HTMLDivElement | null>
   active: boolean
   onUserScroll(): void
-  anchorRef: RefObject<HTMLDivElement>
+  anchorRef: RefObject<HTMLDivElement | null>
 }
 
 /** 控件始终在同一层，避开页面渐隐蒙版；吸顶时与主导航共用一层玻璃背景。 */

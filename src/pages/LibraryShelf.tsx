@@ -25,7 +25,7 @@ export function LibraryShelf({ label, identity, actions, children }: {
 /** 网格分批渲染：只挂载可见附近的卡片，滚到底部再追加。 */
 export function ShelfGrid<T>({ items, scrollRef, render }: {
   items: T[]
-  scrollRef: RefObject<HTMLDivElement>
+  scrollRef: RefObject<HTMLDivElement | null>
   render(item: T): ReactNode
 }) {
   const progressive = useProgressiveCount(items.length, scrollRef)

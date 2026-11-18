@@ -134,7 +134,7 @@ describe('刷歌页导航生命周期', () => {
     const oldListeners = [...h.listeners]
     oldPage.present = false
     const inactive = render(oldPage)
-    expect(inactive.props.inert).toBe('')
+    expect(inactive.props.inert).toBe(true)
     render(h.create())
     // 即使当前路由重新成为刷歌，退出动画中的旧实例仍然不可交互。
     render(oldPage)

@@ -103,7 +103,7 @@ export function useBeatState(enabled: boolean): (now: number) => { pulse: number
  * 把内容缩到舞台里：先按原字号试排，放不下再有限次二分找最大可用倍数，写入 --style-fit。
  * 换行与字号不是线性关系，按比例一次缩放往往缩得过小。窗口、字体与内容变化时重新试排。
  */
-export function useFitToStage(contentRef: RefObject<HTMLElement>, deps: readonly unknown[], options: { checkWidth?: boolean } = {}): void {
+export function useFitToStage(contentRef: RefObject<HTMLElement | null>, deps: readonly unknown[], options: { checkWidth?: boolean } = {}): void {
   const fontScale = useSettingsStore(state => state.lyricsFontScale)
   const checkWidth = options.checkWidth !== false
   useLayoutEffect(() => {

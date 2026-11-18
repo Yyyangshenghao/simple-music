@@ -488,10 +488,10 @@ describe('设置分类导航', () => {
     // 地址行常驻：非自定义模式只禁用不消失，切换模式不改变布局高度
     expect(html).toMatch(/<input[^>]*aria-label="代理地址"[^>]*disabled/)
     expect(html).toMatch(/<input[^>]*aria-label="Apple Music 代理地址"[^>]*disabled/)
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>自动检测/)
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>(?:<[^>]*>)*自动检测/)
     // 跟随系统也能检测：按钮可用；未改动时保存禁用
-    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>检测连接/)
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>保存/)
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>(?:<[^>]*>)*检测连接/)
+    expect(html).toMatch(/<button[^>]*aria-disabled="true"[^>]*>(?:<[^>]*>)*保存/)
     expect(html).toContain('aria-label="连接检测结果"')
     for (const label of ['线路', '网易云音乐', 'QQ 音乐', 'Apple Music']) expect(html).toContain(label)
     // TUN 下应用绕不开代理：标题栏提供代理软件规则引导

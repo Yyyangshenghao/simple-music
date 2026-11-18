@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { Button } from '@astryxdesign/core/Button'
+import { SegmentedControl, SegmentedControlItem } from '@astryxdesign/core/SegmentedControl'
 import { InfoButton } from '../ui/InfoButton'
 import { appleRegionLabel } from '../../lib/apple-music-regions'
 import { ProxyRulesGuide } from './ProxyRulesGuide'
@@ -221,7 +223,7 @@ export function ProxySettings() {
   }
 
   return (
-    <section id="settings-detail-proxy" className={`${page.group} ${page.storageShared}`}>
+    <section id="settings-detail-proxy" className={`${page.group} ${page.storageShared}`} data-astryx-theme="neutral">
       <h3 className={page.groupTitle}>
         代理
         <span className={styles.titleActions}>
@@ -231,15 +233,10 @@ export function ProxySettings() {
       </h3>
       <div data-setting-row className={page.row}>
         <span className={page.rowLabel}>代理模式</span>
-        <div className={page.segControl} role="group" aria-label="代理模式">
-          {PROXY_MODE_OPTIONS.map((option) => (
-            <button key={option.value} type="button" aria-pressed={proxy.mode === option.value}
-              className={`${page.seg} no-drag${proxy.mode === option.value ? ` ${page.segActive}` : ''}`}
-              onClick={() => updateProxy({ mode: option.value })}>
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl label="代理模式" size="sm" className="no-drag" value={proxy.mode}
+          onChange={(value) => updateProxy({ mode: value as typeof proxy.mode })}>
+          {PROXY_MODE_OPTIONS.map((option) => <SegmentedControlItem key={option.value} value={option.value} label={option.label} />)}
+        </SegmentedControl>
       </div>
       <div data-setting-row className={page.row}>
         <span className={page.rowLabel}>代理地址</span>
@@ -251,24 +248,18 @@ export function ProxySettings() {
             title={proxy.mode === 'system' && systemProxy?.address ? `系统当前代理：${systemProxy.address}` : undefined}
             placeholder={addressPlaceholder(proxy.mode, systemProxy)}
             onChange={(event) => updateProxy({ url: event.target.value })} />
-          <button type="button" className={`${page.storageAction} no-drag`} disabled={busy !== null || proxy.mode !== 'custom'}
-            title={proxy.mode === 'custom' ? '查找系统代理与本机常见代理端口' : '选择自定义后可自动检测'}
-            onClick={() => void handleDetect()}>
-            自动检测
-          </button>
+          <Button label="自动检测" variant="secondary" size="sm" className="no-drag" isDisabled={busy !== null || proxy.mode !== 'custom'}
+            isLoading={busy === 'detect'}
+            tooltip={proxy.mode === 'custom' ? '查找系统代理与本机常见代理端口' : '选择自定义后可自动检测'}
+            onClick={() => void handleDetect()} />
         </div>
       </div>
       <div data-setting-row className={page.row}>
         <span className={page.rowLabel}>Apple Music 出口</span>
-        <div className={page.segControl} role="group" aria-label="Apple Music 代理">
-          {APPLE_PROXY_OPTIONS.map((option) => (
-            <button key={option.value} type="button" aria-pressed={proxy.apple === option.value}
-              className={`${page.seg} no-drag${proxy.apple === option.value ? ` ${page.segActive}` : ''}`}
-              onClick={() => updateProxy({ apple: option.value })}>
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl label="Apple Music 代理" size="sm" className="no-drag" value={proxy.apple}
+          onChange={(value) => updateProxy({ apple: value as typeof proxy.apple })}>
+          {APPLE_PROXY_OPTIONS.map((option) => <SegmentedControlItem key={option.value} value={option.value} label={option.label} />)}
+        </SegmentedControl>
       </div>
       <div data-setting-row className={page.row}>
         <span className={page.rowLabel}>Apple Music 代理地址</span>
@@ -286,15 +277,11 @@ export function ProxySettings() {
       <div data-setting-row className={page.row}>
         <span className={`${page.rowLabel} ${styles.status}`} role="status" aria-live="polite" title={statusText}>{statusText}</span>
         <div className={page.rowControls}>
-          <button type="button" className={`${page.storageAction} no-drag`} disabled={busy !== null || missingAddress}
-            title="按当前填写的设置检测，不必先保存" onClick={() => void runDiagnosis(proxy)}>
-            检测连接
-          </button>
+          <Button label="检测连接" variant="secondary" size="sm" className="no-drag" isDisabled={busy !== null || missingAddress}
+            isLoading={busy === 'diagnose'} tooltip="按当前填写的设置检测，不必先保存" onClick={() => void runDiagnosis(proxy)} />
           {/* 只有可保存时才用主按钮样式：禁用的实心强调色在浅色主题下几乎看不清文字。 */}
-          <button type="button" className={`${page.storageAction}${dirty && !missingAddress ? ` ${page.actionPrimary}` : ''} no-drag`} disabled={busy !== null || !dirty || missingAddress}
-            onClick={() => void handleSave()}>
-            保存
-          </button>
+          <Button label="保存" variant={dirty && !missingAddress ? 'primary' : 'secondary'} size="sm" className="no-drag"
+            isDisabled={busy !== null || !dirty || missingAddress} isLoading={busy === 'save'} onClick={() => void handleSave()} />
         </div>
       </div>
       {/* 主次：需要处理的问题放最前、带解决按钮；结果只列事实；提示一行小字垫底。 */}
